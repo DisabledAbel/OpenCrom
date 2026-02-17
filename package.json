@@ -1,0 +1,12 @@
+{
+  "name": "mini-cron",
+  "version": "1.2.0",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "cors": "^2.8.5",
+    "cron-parser": "^4.9.0",
+    "pg": "^8.11.5"
+  }
+}

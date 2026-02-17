@@ -1,6 +1,6 @@
 import fetch from "node-fetch";
 import parser from "cron-parser";
-import { supabase } from "../db.js";
+import { supabase } from "../src/db.js";
 
 function getNext(cron, from) {
   try {
@@ -13,7 +13,7 @@ function getNext(cron, from) {
 
 async function run() {
   const { data: jobs, error } = await supabase.from("jobs").select("*");
-  if (error) return console.error("Worker error fetching jobs:", error);
+  if (error) return console.error("Worker fetch jobs error:", error);
 
   const now = Date.now();
 

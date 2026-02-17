@@ -1,26 +1,17 @@
 services:
   - type: web
-    name: minicron-web
+    name: cron-dashboard
     env: node
+    region: oregon
     plan: free
     branch: main
-    buildCommand: npm install
-    startCommand: node web/server.js
+    buildCommand: "npm install"
+    startCommand: "npm start"
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: SUPABASE_URL
         fromSecret: SUPABASE_URL
       - key: SUPABASE_SERVICE_KEY
         fromSecret: SUPABASE_SERVICE_KEY
-
-  - type: worker
-    name: minicron-worker
-    env: node
-    plan: free
-    branch: main
-    buildCommand: npm install
-    startCommand: node worker/worker.js
-    envVars:
-      - key: SUPABASE_URL
-        fromSecret: SUPABASE_URL
-      - key: SUPABASE_SERVICE_KEY
-        fromSecret: SUPABASE_SERVICE_KEY
+    autoDeploy: true

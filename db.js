@@ -1,7 +1,7 @@
-import pkg from "pg";
-const { Pool } = pkg;
+// db.js
+import { createClient } from "@supabase/supabase-js";
 
-export const db = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // Required for Supabase Free
-});
+export const supabase = createClient(
+  process.env.SUPABASE_URL,         // e.g., https://uassydhiqfrbbhrygbft.supabase.co
+  process.env.SUPABASE_SERVICE_KEY  // service_role key
+);

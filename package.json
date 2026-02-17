@@ -1,30 +1,24 @@
 {
   "name": "cron-dashboard",
   "version": "1.0.0",
-  "description": "Cron execution engine with UI dashboard, auth, and scheduling",
+  "description": "Web cron execution engine with login and dashboard",
   "type": "module",
   "main": "web/server.js",
   "scripts": {
     "start": "node web/server.js",
-    "dev": "node --watch web/server.js"
+    "build": "echo build complete"
   },
   "engines": {
-    "node": ">=20"
+    "node": "20.x",
+    "npm": "10.x"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^9.4.0",
-    "connect-sqlite3": "^0.9.13",
-    "cookie-parser": "^1.4.6",
+    "connect-sqlite3": "^0.9.15",
     "cron": "^3.1.7",
-    "dayjs": "^1.11.13",
-    "dotenv": "^16.4.5",
-    "ejs": "^3.1.10",
     "express": "^4.19.2",
     "express-session": "^1.17.3",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
-    "nanoid": "^5.0.7",
-    "node-fetch": "^3.3.2"
+    "nanoid": "^5.0.7"
   }
 }

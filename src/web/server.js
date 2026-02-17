@@ -2,6 +2,7 @@ import express from "express";
 import session from "express-session";
 import SQLiteStore from "connect-sqlite3";
 import dashboardRouter from "./routes/dashboard.js";
+import "./cronjobs.js"; // Load and run cronjobs
 
 const app = express();
 
@@ -21,6 +22,5 @@ app.get("/", (req, res) => {
 // Dashboard
 app.use("/dashboard", dashboardRouter);
 
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

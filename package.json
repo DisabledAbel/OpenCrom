@@ -1,9 +1,30 @@
-"dependencies": {
-  "@supabase/supabase-js": "^2.36.0",
-  "express": "^4.18.2",
-  "cors": "^2.8.5",
-  "node-fetch": "^3.3.1",
-- "cron-parser": "^4.9.0"
-+ "cron-parser": "^4.9.0",
-+ "cookie-parser": "^1.4.6"
+{
+  "name": "cron-dashboard",
+  "version": "1.0.0",
+  "description": "Cron execution engine with UI dashboard, auth, and scheduling",
+  "type": "module",
+  "main": "web/server.js",
+  "scripts": {
+    "start": "node web/server.js",
+    "dev": "node --watch web/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "better-sqlite3": "^9.4.0",
+    "connect-sqlite3": "^0.9.13",
+    "cookie-parser": "^1.4.6",
+    "cron": "^3.1.7",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-session": "^1.17.3",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "nanoid": "^5.0.7",
+    "node-fetch": "^3.3.2"
+  }
 }

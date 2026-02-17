@@ -1,64 +1,55 @@
 import fetch from "node-fetch";
 import parser from "cron-parser";
-import { db } from "../db.js";
+import { supabase } from "../db.js";
 
-function getNext(cron, from){
-  try{
-    const it = parser.parseExpression(cron,{currentDate:new Date(from)});
+function getNext(cron, from) {
+  try {
+    const it = parser.parseExpression(cron, { currentDate: new Date(from) });
     return it.next().getTime();
-  }catch{
+  } catch {
     return null;
   }
 }
 
-async function run(){
+async function run() {
+  const { data: jobs, error } = await supabase.from("jobs").select("*");
+  if (error) return console.error("Worker error fetching jobs:", error);
 
-  const { rows:jobs } = await db.query("SELECT * FROM jobs");
   const now = Date.now();
 
-  for(const job of jobs){
-
-    if(!job.next_run){
-      const next = getNext(job.cron,now);
-      await db.query(
-        "UPDATE jobs SET next_run=$1 WHERE id=$2",
-        [next,job.id]
-      );
+  for (const job of jobs) {
+    if (!job.next_run) {
+      const next = getNext(job.cron, now);
+      await supabase.from("jobs").update({ next_run: next }).eq("id", job.id);
       continue;
     }
 
-    if(now >= job.next_run){
-
-      try{
+    if (now >= job.next_run) {
+      try {
         const start = Date.now();
         const res = await fetch(job.url);
         const ms = Date.now() - start;
 
-        await db.query(
-          `INSERT INTO logs(job_id,url,status,response_time)
-           VALUES($1,$2,$3,$4)`,
-          [job.id,job.url,res.status,ms]
-        );
-
-      }catch(err){
-        await db.query(
-          `INSERT INTO logs(job_id,url,status,error)
-           VALUES($1,$2,$3,$4)`,
-          [job.id,job.url,"ERROR",err.message]
-        );
+        await supabase.from("logs").insert([{
+          job_id: job.id,
+          url: job.url,
+          status: res.status,
+          response_time: ms
+        }]);
+      } catch (err) {
+        await supabase.from("logs").insert([{
+          job_id: job.id,
+          url: job.url,
+          status: "ERROR",
+          error: err.message
+        }]);
       }
 
-      const next = getNext(job.cron,now);
-
-      await db.query(
-        `UPDATE jobs
-         SET last_run=$1,next_run=$2
-         WHERE id=$3`,
-        [now,next,job.id]
-      );
+      const next = getNext(job.cron, now);
+      await supabase.from("jobs").update({ last_run: now, next_run: next }).eq("id", job.id);
     }
   }
 }
 
 console.log("Worker running");
-setInterval(run,10000);
+setInterval(run, 10000);

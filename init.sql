@@ -1,0 +1,17 @@
+CREATE TABLE IF NOT EXISTS jobs (
+  id BIGSERIAL PRIMARY KEY,
+  url TEXT NOT NULL,
+  cron TEXT NOT NULL,
+  last_run BIGINT DEFAULT 0,
+  next_run BIGINT DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS logs (
+  id BIGSERIAL PRIMARY KEY,
+  job_id BIGINT,
+  url TEXT,
+  status TEXT,
+  response_time INT,
+  error TEXT,
+  ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

@@ -1,7 +1,7 @@
-// db.js
 import { createClient } from "@supabase/supabase-js";
 
+// Read secrets from environment variables
 export const supabase = createClient(
-  process.env.SUPABASE_URL,         // e.g., https://uassydhiqfrbbhrygbft.supabase.co
-  process.env.SUPABASE_SERVICE_KEY  // service_role key
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
 );

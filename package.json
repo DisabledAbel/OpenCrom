@@ -1,26 +1,30 @@
 {
   "name": "cron-dashboard",
   "version": "1.0.0",
-  "description": "Web cron execution engine with login and dashboard",
-  "type": "module",
+  "description": "Open-source web cron job dashboard with Supabase backend",
   "main": "web/server.js",
+  "type": "module",
   "scripts": {
     "start": "node web/server.js",
-    "build": "echo build complete"
+    "dev": "nodemon web/server.js"
   },
   "engines": {
-    "node": "20.x",
-    "npm": "10.x"
+    "node": ">=20"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^9.4.0",
     "connect-sqlite3": "^0.9.15",
     "cron": "^3.1.7",
+    "cron-parser": "^4.11.0",
     "express": "^4.19.2",
     "express-session": "^1.17.3",
     "nanoid": "^5.0.7",
     "cors": "^2.8.5",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "@supabase/supabase-js": "^2.34.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
   }
 }

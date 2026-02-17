@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: minicron-web
+    env: node
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: node web/server.js
+    envVars:
+      - key: SUPABASE_URL
+        fromSecret: SUPABASE_URL
+      - key: SUPABASE_SERVICE_KEY
+        fromSecret: SUPABASE_SERVICE_KEY
+
+  - type: worker
+    name: minicron-worker
+    env: node
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: node worker/worker.js
+    envVars:
+      - key: SUPABASE_URL
+        fromSecret: SUPABASE_URL
+      - key: SUPABASE_SERVICE_KEY
+        fromSecret: SUPABASE_SERVICE_KEY

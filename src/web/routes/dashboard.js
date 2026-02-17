@@ -1,23 +1,23 @@
 import express from "express";
-import db from "../cronjobs.js"; // your DB with cronjob info
 
 const router = express.Router();
 
-router.get("/", (req, res) => {
-  // Fetch all cronjobs from database
-  const rows = db.prepare("SELECT id, name, schedule, last_run, status FROM cronjobs").all();
+// Dummy data for demonstration
+const cronjobs = [
+  { id: 1, name: "Job A", schedule: "*/5 * * * *", last_run: "2026-02-17 20:00", status: "success" },
+  { id: 2, name: "Job B", schedule: "0 * * * *", last_run: "2026-02-17 19:00", status: "pending" },
+];
 
-  let tableRows = rows.map(r => `
+router.get("/", (req, res) => {
+  let rows = cronjobs.map(job => `
     <tr>
-      <td>${r.id}</td>
-      <td>${r.name}</td>
-      <td>${r.schedule}</td>
-      <td>${r.last_run || "-"}</td>
-      <td>${r.status || "-"}</td>
+      <td>${job.id}</td>
+      <td>${job.name}</td>
+      <td>${job.schedule}</td>
+      <td>${job.last_run}</td>
+      <td>${job.status}</td>
     </tr>
   `).join("");
-
-  if (!tableRows) tableRows = "<tr><td colspan='5'>No cronjobs found</td></tr>";
 
   res.send(`
     <h1>Cronjob Dashboard</h1>
@@ -32,13 +32,9 @@ router.get("/", (req, res) => {
         </tr>
       </thead>
       <tbody>
-        ${tableRows}
+        ${rows}
       </tbody>
     </table>
-    <p>Page auto-refreshes every 10 seconds.</p>
-    <script>
-      setTimeout(() => { window.location.reload(); }, 10000);
-    </script>
   `);
 });
 

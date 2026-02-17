@@ -1,31 +1,33 @@
 {
-  "name": "cron-dashboard",
+  "name": "my-app",
   "version": "1.0.0",
-  "description": "Open-source cron job scheduler with UI, login, and Supabase/SQLite backend",
+  "description": "Render-deployable Node app with native modules",
+  "main": "src/web/server.js",
   "type": "module",
-  "main": "web/server.js",
   "scripts": {
-    "start": "node web/server.js",
-    "dev": "nodemon web/server.js"
+    "start": "node src/web/server.js",
+    "dev": "nodemon src/web/server.js",
+    "test": "echo \"No tests configured\" && exit 0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": "20.x"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.32.0",
-    "better-sqlite3": "^8.2.0",
     "cors": "^2.8.5",
-    "cron-parser": "^4.9.0",
     "express": "^4.18.2",
-    "express-session": "^1.17.3",
-    "connect-sqlite3": "^0.9.0",
-    "nanoid": "^4.0.2",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "cron-parser": "^4.9.0",
+    "better-sqlite3": "^8.2.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.2"
   },
-  "keywords": ["cron", "scheduler", "dashboard", "supabase", "sqlite"],
-  "author": "Abel Andrews",
+  "keywords": [
+    "render",
+    "node",
+    "sqlite",
+    "express"
+  ],
+  "author": "Abel ",
   "license": "MIT"
 }

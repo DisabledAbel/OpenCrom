@@ -1,41 +1,56 @@
 import express from "express";
 import cors from "cors";
-import { db } from "../db.js";
+import { supabase } from "../db.js";
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 app.use(express.static("web/public"));
 
-app.get("/api/jobs", async (req,res)=>{
-  const { rows } = await db.query(
-    "SELECT * FROM jobs ORDER BY id DESC"
-  );
-  res.json(rows);
+// Get jobs
+app.get("/api/jobs", async (req, res) => {
+  const { data: jobs, error } = await supabase
+    .from("jobs")
+    .select("*")
+    .order("id", { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(jobs);
 });
 
-app.post("/api/jobs", async (req,res)=>{
+// Create job
+app.post("/api/jobs", async (req, res) => {
   const { url, cron } = req.body;
+  const { data, error } = await supabase
+    .from("jobs")
+    .insert([{ url, cron, last_run: 0, next_run: Date.now() }])
+    .select();
 
-  const { rows } = await db.query(
-    "INSERT INTO jobs(url,cron,next_run) VALUES($1,$2,$3) RETURNING *",
-    [url,cron,Date.now()]
-  );
-
-  res.json(rows[0]);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data[0]);
 });
 
-app.delete("/api/jobs/:id", async (req,res)=>{
-  await db.query("DELETE FROM jobs WHERE id=$1",[req.params.id]);
+// Delete job
+app.delete("/api/jobs/:id", async (req, res) => {
+  const { error } = await supabase
+    .from("jobs")
+    .delete()
+    .eq("id", req.params.id);
+
+  if (error) return res.status(500).json({ error: error.message });
   res.sendStatus(204);
 });
 
-app.get("/api/logs", async (req,res)=>{
-  const { rows } = await db.query(
-    "SELECT * FROM logs ORDER BY ran_at DESC LIMIT 50"
-  );
-  res.json(rows);
+// Get logs
+app.get("/api/logs", async (req, res) => {
+  const { data: logs, error } = await supabase
+    .from("logs")
+    .select("*")
+    .order("ran_at", { ascending: false })
+    .limit(50);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(logs);
 });
 
-app.listen(3000,()=>console.log("Web running"));
+app.listen(3000, () => console.log("Web running"));

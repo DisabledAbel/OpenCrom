@@ -1,139 +1,105 @@
 import express from "express";
+import session from "express-session";
+import SQLiteStore from "connect-sqlite3";
 import cors from "cors";
-import fetch from "node-fetch";
-import parser from "cron-parser";
-import cookieParser from "cookie-parser";
-import { supabase } from "../db.js";
+import { createClient } from "@supabase/supabase-js";
+import { scheduleJob } from "cron-schedule"; // replacement for cron-parser
+import { nanoid } from "nanoid";
 
+// --- CONFIG ---
 const app = express();
+const PORT = process.env.PORT || 3000;
 
+// Supabase
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+// Middlewares
 app.use(cors());
 app.use(express.json());
-app.use(cookieParser());
-app.use(express.static("web/public"));
+app.use(
+  session({
+    store: new SQLiteStore({ db: "sessions.sqlite" }),
+    secret: process.env.SESSION_SECRET || "supersecret",
+    resave: false,
+    saveUninitialized: true,
+  })
+);
 
-const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+// --- ROUTES ---
 
-/* -------- AUTH MIDDLEWARE -------- */
+// Test route
+app.get("/", (req, res) => {
+  res.send("Cron Dashboard is running!");
+});
 
-function requireAuth(req,res,next){
-  if(req.cookies?.auth==="ok") return next();
-  return res.status(401).json({error:"Not logged in"});
-}
+// Schedule a job
+app.post("/api/schedule", async (req, res) => {
+  const { cronTime, command } = req.body;
 
-/* -------- LOGIN ROUTES -------- */
-
-app.post("/api/login",(req,res)=>{
-  const { password } = req.body;
-
-  if(password===ADMIN_PASSWORD){
-    res.cookie("auth","ok",{httpOnly:true,sameSite:"lax"});
-    return res.json({success:true});
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not logged in" });
   }
 
-  res.status(401).json({error:"Wrong password"});
-});
-
-app.post("/api/logout",(req,res)=>{
-  res.clearCookie("auth");
-  res.json({success:true});
-});
-
-/* -------- API -------- */
-
-app.get("/api/jobs", requireAuth, async (req,res)=>{
-  const {data,error}=await supabase.from("jobs").select("*").order("id",{ascending:false});
-  if(error) return res.status(500).json({error:error.message});
-  res.json(data);
-});
-
-app.post("/api/jobs", requireAuth, async (req,res)=>{
-  const {url,cron}=req.body;
-  const next=getNextRun(cron,Date.now());
-
-  const {data,error}=await supabase
-    .from("jobs")
-    .insert([{url,cron,last_run:0,next_run:next}])
-    .select();
-
-  if(error) return res.status(500).json({error:error.message});
-  res.json(data[0]);
-});
-
-app.delete("/api/jobs/:id", requireAuth, async (req,res)=>{
-  const {error}=await supabase.from("jobs").delete().eq("id",req.params.id);
-  if(error) return res.status(500).json({error:error.message});
-  res.sendStatus(204);
-});
-
-app.get("/api/logs", requireAuth, async (req,res)=>{
-  const {data,error}=await supabase
-    .from("logs")
-    .select("*")
-    .order("ran_at",{ascending:false})
-    .limit(50);
-
-  if(error) return res.status(500).json({error:error.message});
-  res.json(data);
-});
-
-/* -------- CRON ENGINE -------- */
-
-function getNextRun(cron,from){
-  try{
-    const it=parser.parseExpression(cron,{currentDate:new Date(from)});
-    return it.next().getTime();
-  }catch{
-    return null;
+  if (!cronTime || !command) {
+    return res.status(400).json({ error: "Missing cronTime or command" });
   }
-}
 
-async function runJobs(){
-  const {data:jobs,error}=await supabase.from("jobs").select("*");
-  if(error) return console.error(error);
+  try {
+    // Schedule the job
+    const jobId = nanoid();
+    scheduleJob(cronTime, () => {
+      console.log(`Executing job ${jobId}: ${command}`);
+      // Here you can run your command, call API, etc.
+    });
 
-  const now=Date.now();
+    // Store job in Supabase
+    const { error } = await supabase.from("cron_jobs").insert([
+      {
+        id: jobId,
+        user_id: req.session.userId,
+        cron_time: cronTime,
+        command,
+        created_at: new Date().toISOString(),
+      },
+    ]);
 
-  for(const job of jobs){
-    if(!job.next_run){
-      const next=getNextRun(job.cron,now);
-      await supabase.from("jobs").update({next_run:next}).eq("id",job.id);
-      continue;
-    }
+    if (error) throw error;
 
-    if(now>=job.next_run){
-      try{
-        const start=Date.now();
-        const r=await fetch(job.url);
-        const ms=Date.now()-start;
-
-        await supabase.from("logs").insert([{
-          job_id:job.id,
-          url:job.url,
-          status:r.status,
-          response_time:ms
-        }]);
-      }catch(e){
-        await supabase.from("logs").insert([{
-          job_id:job.id,
-          url:job.url,
-          status:"ERROR",
-          error:e.message
-        }]);
-      }
-
-      const next=getNextRun(job.cron,now);
-
-      await supabase.from("jobs")
-        .update({last_run:now,next_run:next})
-        .eq("id",job.id);
-    }
+    res.json({ success: true, jobId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to schedule job" });
   }
-}
+});
 
-setInterval(runJobs,10000);
+// --- LOGIN ROUTES (example) ---
+app.post("/api/login", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email required" });
 
-app.listen(PORT,()=>{
-  console.log("Server running on port",PORT);
+  // Lookup or create user in Supabase
+  const { data, error } = await supabase
+    .from("users")
+    .upsert({ email }, { onConflict: ["email"] })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  req.session.userId = data.id;
+  res.json({ success: true, user: data });
+});
+
+app.post("/api/logout", (req, res) => {
+  req.session.destroy(() => {
+    res.json({ success: true });
+  });
+});
+
+// --- START SERVER ---
+app.listen(PORT, () => {
+  console.log(`Cron Dashboard running on port ${PORT}`);
 });

@@ -1,12 +1,16 @@
 {
-  "name": "mini-cron",
-  "version": "1.2.0",
+  "name": "minicron",
+  "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "start:web": "node web/server.js",
+    "start:worker": "node worker/worker.js"
+  },
   "dependencies": {
-    "express": "^4.19.2",
-    "node-fetch": "^3.3.2",
+    "@supabase/supabase-js": "^2.36.0",
+    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "cron-parser": "^4.9.0",
-    "pg": "^8.11.5"
+    "node-fetch": "^3.3.1",
+    "cron-parser": "^4.10.0"
   }
 }

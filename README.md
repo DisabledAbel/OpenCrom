@@ -130,9 +130,3 @@ package.json
 * express-session
 * connect-sqlite3
 * better-sqlite3
-
----
-
-## License
-
-MIT License

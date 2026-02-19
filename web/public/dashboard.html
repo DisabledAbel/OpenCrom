@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cron Dashboard</title>
+
+<style>
+:root{
+  --bg:#020617;
+  --card:#0f172a;
+  --accent:#22c55e;
+  --text:#e2e8f0;
+  --muted:#94a3b8;
+  --border:#1e293b;
+}
+
+*{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+
+body{
+  margin:0;
+  background:linear-gradient(135deg,#020617,#020617,#0f172a);
+  color:var(--text);
+}
+
+header{
+  padding:18px 28px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+h1{margin:0;font-size:22px}
+
+.container{
+  max-width:1000px;
+  margin:30px auto;
+  padding:0 20px;
+}
+
+.card{
+  background:var(--card);
+  padding:24px;
+  border-radius:16px;
+  margin-bottom:24px;
+  box-shadow:0 10px 30px rgba(0,0,0,.4);
+}
+
+label{
+  display:block;
+  margin-bottom:6px;
+  color:var(--muted);
+  font-size:13px;
+}
+
+input,select{
+  width:100%;
+  padding:11px 12px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  background:#020617;
+  color:var(--text);
+  margin-bottom:16px;
+}
+
+button{
+  padding:12px 16px;
+  border-radius:10px;
+  border:none;
+  background:var(--accent);
+  color:#022c22;
+  font-weight:700;
+  cursor:pointer;
+}
+
+button:hover{filter:brightness(1.05)}
+
+.job{
+  padding:14px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  margin-bottom:10px;
+  background:#020617;
+}
+
+.job .time{
+  color:var(--muted);
+  font-size:12px;
+}
+
+.empty{
+  color:var(--muted);
+  text-align:center;
+  padding:30px 0;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>Cron Job Dashboard</h1>
+  <button onclick="logout()">Logout</button>
+</header>
+
+<div class="container">
+
+  <!-- ADD JOB -->
+  <div class="card">
+    <h2 style="margin-top:0">Schedule Job</h2>
+
+    <form id="jobForm">
+      <label>Job Name</label>
+      <input name="name" required>
+
+      <label>URL to call</label>
+      <input name="url" placeholder="https://example.com/api" required>
+
+      <label>Run every (cron format)</label>
+      <input name="cron" placeholder="*/5 * * * *" required>
+
+      <button type="submit">Add Job</button>
+    </form>
+  </div>
+
+  <!-- JOB LIST -->
+  <div class="card">
+    <h2 style="margin-top:0">Scheduled Jobs</h2>
+    <div id="jobs"></div>
+  </div>
+
+</div>
+
+<script>
+
+async function loadJobs(){
+  const res = await fetch("/api/jobs");
+  if(res.status===401){
+    window.location="/login.html";
+    return;
+  }
+
+  const jobs = await res.json();
+  const el = document.getElementById("jobs");
+
+  if(!jobs.length){
+    el.innerHTML='<div class="empty">No jobs scheduled</div>';
+    return;
+  }
+
+  el.innerHTML="";
+  jobs.forEach(j=>{
+    const div=document.createElement("div");
+    div.className="job";
+    div.innerHTML=`
+      <b>${j.name}</b>
+      <div>${j.url}</div>
+      <div class="time">${j.cron}</div>
+    `;
+    el.appendChild(div);
+  });
+}
+
+document.getElementById("jobForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const data=new URLSearchParams(new FormData(e.target));
+
+  const res=await fetch("/api/jobs",{
+    method:"POST",
+    body:data,
+    headers:{ "Content-Type":"application/x-www-form-urlencoded" }
+  });
+
+  if(res.ok){
+    e.target.reset();
+    loadJobs();
+  }else{
+    alert("Failed to add job");
+  }
+});
+
+function logout(){
+  fetch("/logout").then(()=>window.location="/login.html");
+}
+
+loadJobs();
+</script>
+
+</body>
+</html>

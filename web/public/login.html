@@ -1,166 +1,69 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cron App Login</title>
+<title>Login</title>
 
 <style>
-  :root {
-    --bg: #0f172a;
-    --card: #1e293b;
-    --accent: #22c55e;
-    --text: #e2e8f0;
-    --muted: #94a3b8;
-    --danger: #ef4444;
-  }
-
-  * {
-    box-sizing: border-box;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  }
-
-  body {
-    margin: 0;
-    background: linear-gradient(135deg,#020617,#0f172a);
-    height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text);
-  }
-
-  .card {
-    width: 100%;
-    max-width: 380px;
-    background: var(--card);
-    padding: 34px;
-    border-radius: 18px;
-    box-shadow: 0 20px 50px rgba(0,0,0,.45);
-  }
-
-  h1 {
-    margin: 0 0 6px 0;
-    font-size: 26px;
-    font-weight: 700;
-    text-align: center;
-  }
-
-  .subtitle {
-    text-align: center;
-    color: var(--muted);
-    margin-bottom: 26px;
-    font-size: 14px;
-  }
-
-  label {
-    font-size: 13px;
-    color: var(--muted);
-    display: block;
-    margin-bottom: 6px;
-  }
-
-  input {
-    width: 100%;
-    padding: 12px 14px;
-    margin-bottom: 18px;
-    border-radius: 10px;
-    border: 1px solid #334155;
-    background: #020617;
-    color: var(--text);
-    font-size: 15px;
-  }
-
-  input:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent);
-  }
-
-  button {
-    width: 100%;
-    padding: 13px;
-    border-radius: 12px;
-    border: none;
-    background: var(--accent);
-    color: #022c22;
-    font-weight: 700;
-    font-size: 15px;
-    cursor: pointer;
-    transition: .15s;
-  }
-
-  button:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.05);
-  }
-
-  .error {
-    margin-top: 12px;
-    color: var(--danger);
-    font-size: 13px;
-    text-align: center;
-    display: none;
-  }
-
-  .footer {
-    margin-top: 18px;
-    text-align: center;
-    font-size: 12px;
-    color: var(--muted);
-  }
+body{
+  background:#020617;
+  color:#e2e8f0;
+  font-family:system-ui;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height:100vh;
+  margin:0;
+}
+.card{
+  background:#0f172a;
+  padding:30px;
+  border-radius:16px;
+  width:320px;
+  box-shadow:0 10px 40px rgba(0,0,0,.5);
+}
+input{
+  width:100%;
+  padding:12px;
+  margin:8px 0 16px;
+  border-radius:10px;
+  border:1px solid #1e293b;
+  background:#020617;
+  color:#e2e8f0;
+}
+button{
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  background:#22c55e;
+  font-weight:bold;
+  cursor:pointer;
+}
 </style>
 </head>
 
 <body>
 
 <div class="card">
-  <h1>Cron Dashboard</h1>
-  <div class="subtitle">Login to manage scheduled jobs</div>
+<h2>Login</h2>
 
-  <form id="loginForm">
-    <label>Username</label>
-    <input name="username" required />
+<form method="POST" action="/login">
+  <label>Username</label>
+  <input name="username" required>
 
-    <label>Password</label>
-    <input name="password" type="password" required />
+  <label>Password</label>
+  <input name="password" type="password" required>
 
-    <button type="submit">Login</button>
-  </form>
+  <button>Login</button>
+</form>
 
-  <div class="error" id="err">Login failed</div>
+<p style="font-size:12px;color:#94a3b8;margin-top:12px">
+Default login:<br>
+admin / render123
+</p>
 
-  <div class="footer">
-    Protected scheduling interface
-  </div>
 </div>
-
-<script>
-const form = document.getElementById("loginForm");
-const err = document.getElementById("err");
-
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const data = new URLSearchParams(new FormData(form));
-
-  const res = await fetch("/login", {
-    method: "POST",
-    body: data,
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    }
-  });
-
-  // Express will redirect on success
-  if (res.redirected) {
-    window.location = res.url;
-    return;
-  }
-
-  err.style.display = "block";
-});
-</script>
 
 </body>
 </html>

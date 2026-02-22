@@ -14,8 +14,6 @@ The dashboard automatically blocks anyone whose IP is not approved.
 
 ---
 
-# Features
-
 ## Security
 - IP-based access control (no login required)
 - Admin token required to modify allowed IPs

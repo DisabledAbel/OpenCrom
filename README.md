@@ -1,132 +1,259 @@
-# Render Cronjob Dashboard App
+# Cron Job Dashboard (IP-Protected)
 
-This is a Node.js cronjob application deployed on [Render](https://render.com) with an SQLite database and session management. It provides a simple web dashboard to monitor all scheduled cronjobs and their execution status.
+A self-hosted cron job control panel designed for deployment on Render.
 
----
+This app lets you:
 
-## Features
+- Schedule cron jobs from a web dashboard  
+- Keep jobs private using IP allow-listing  
+- Avoid logins/passwords entirely  
+- Control which IPs can access the app  
+- Persist allowed IPs and jobs on disk  
 
-- Runs cronjobs and logs their execution in SQLite.
-- Web dashboard at `/dashboard` showing:
-  - Job Name
-  - Last Run Time
-  - Status (success/failure)
-- Session management using `express-session` with `connect-sqlite3`.
-- Fully deployable on Render with Node.js.
+The dashboard automatically blocks anyone whose IP is not approved.
 
 ---
 
-## Prerequisites
+# Features
 
-- Node.js >= 20
-- SQLite3
-- Render account
+## Security
+- IP-based access control (no login required)
+- Admin token required to modify allowed IPs
+- Automatic blocking before UI loads
+- Trust proxy enabled for correct client IP detection on hosting platforms
+
+## Dashboard
+- Shows your current IP
+- Lists all allowed IPs
+- Add/remove IPs from UI
+- Auto-add your current IP button
+
+## Cron Engine
+- Schedule background jobs
+- Jobs persist between restarts
+- Designed for lightweight automation tasks
 
 ---
 
-## Installation
+# Folder Structure
 
-1. Clone the repository:
+```
 
-```bash
-git clone https://github.com/yourusername/your-repo.git
-cd your-repo
-````
+project-root/
+│
+├── web/
+│   └── server.js
+│
+├── allowed-ips.json      # auto-generated
+├── jobs.json             # cron job storage
+├── package.json
+└── README.md
 
-2. Install dependencies:
+```
 
-```bash
+---
+
+# Environment Variables
+
+You **must** set this in Render:
+
+```
+
+ADMIN_TOKEN=your_secret_token_here
+
+```
+
+Use a long random string.
+
+This token is required to:
+
+- Add IPs
+- Remove IPs
+- Auto-add your own IP
+
+Without it, nobody can modify access rules.
+
+---
+
+# Local Development
+
+Install dependencies:
+
+```
+
 npm install
+
 ```
 
-3. Create your SQLite databases:
+Run the server:
 
-```bash
-touch cronjobs.db
-touch sessions.db
 ```
 
----
+node web/server.js
 
-## Running Locally
-
-```bash
-npm start
 ```
 
-* Visit `http://localhost:3000` for the root page.
-* Visit `http://localhost:3000/dashboard` to see the cronjob dashboard.
+Open:
 
----
+```
 
-## Logging Cronjobs
+[http://localhost:3000](http://localhost:3000)
 
-Whenever a cronjob runs, log its execution to the database:
-
-```js
-import Database from "better-sqlite3";
-
-const db = new Database("cronjobs.db");
-
-function logCronJob(name, status) {
-  db.prepare(`
-    INSERT INTO cron_log (job_name, last_run, status)
-    VALUES (?, datetime('now'), ?)
-  `).run(name, status);
-}
-
-// Example usage
-logCronJob("daily-report", "success");
 ```
 
 ---
 
-## Deployment on Render
+# Deploying to Render
 
-1. Connect your GitHub repository to Render.
-2. Set Node version in `package.json`:
+## 1. Push repo to GitHub
 
-```json
-{
-  "engines": {
-    "node": "20.x"
-  }
-}
-```
+Make sure these files exist:
 
-3. Ensure build and start commands are set:
+- package.json
+- web/server.js
+- README.md
 
-```bash
-Build Command: npm install
-Start Command: node web/server.js
-```
+Do NOT commit:
 
-4. Deploy and visit:
+- allowed-ips.json
+- jobs.json
 
-* Root: `https://<your-app>.onrender.com`
-* Dashboard: `https://<your-app>.onrender.com/dashboard`
+Add them to `.gitignore`.
 
 ---
 
-## Project Structure
+## 2. Create a Web Service in Render
+
+Settings:
+
+- Runtime: Node
+- Build command:
+```
+
+npm install
 
 ```
-/src
-  /web
-    server.js          # Main server file
-    /routes
-      dashboard.js     # Dashboard route
-  /cpp                # Optional C++ scripts
-cronjobs.db            # Cronjob logs
-sessions.db            # Session store
-package.json
+- Start command:
+```
+
+node web/server.js
+
 ```
 
 ---
 
-## Dependencies
+## 3. Add Environment Variable
 
-* express
-* express-session
-* connect-sqlite3
-* better-sqlite3
+In Render dashboard:
+
+```
+
+ADMIN_TOKEN=your_secret_token
+
+```
+
+Redeploy after adding.
+
+---
+
+# First Launch Flow
+
+1. Open your Render URL
+2. Dashboard loads immediately
+3. Add your IP using admin token
+4. After that:
+   - Only allowed IPs can access the app
+   - Everyone else gets blocked
+
+If you forget to add your IP, the app remains open until the first IP is saved.
+
+---
+
+# How IP Detection Works
+
+The server checks:
+
+1. `x-forwarded-for` header (from proxy)
+2. Socket remote address fallback
+
+Trust proxy is enabled so real client IPs work correctly behind hosting platforms.
+
+---
+
+# Resetting Access If Locked Out
+
+You have three options:
+
+### Option A — Delete IP file
+Remove:
+
+```
+
+allowed-ips.json
+
+```
+
+Then redeploy.
+
+App becomes open again.
+
+---
+
+### Option B — Use Render Shell
+Open Render shell and run:
+
+```
+
+rm allowed-ips.json
+
+```
+
+Restart service.
+
+---
+
+### Option C — Change Admin Token
+Update:
+
+```
+
+ADMIN_TOKEN
+
+```
+
+Redeploy.
+
+---
+
+# Production Recommendations
+
+- Always keep admin token private
+- Allow only your home IP or static ISP range
+- Consider allowing multiple backup IPs
+- Use HTTPS (Render already does this)
+
+---
+
+# Future Improvements (optional)
+
+Possible upgrades:
+
+- CIDR network allow-listing
+- Job history logs
+- Dark mode UI
+- Cron syntax helper
+- Export/import jobs
+- Multi-user admin roles
+- First-run setup wizard
+
+---
+
+# License
+
+MIT — free to use, modify, and deploy.
+
+---
+
+# Author Notes
+
+This project is intentionally simple, self-contained, and designed to run on low-resource hosting 

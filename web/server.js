@@ -1,106 +1,143 @@
 import express from "express";
-import session from "express-session";
-import bcrypt from "bcrypt";
+import fs from "fs";
 
 const app = express();
 
-/* ---------- CONFIG FROM ENV ---------- */
-const ADMIN_USER = process.env.ADMIN_USER || "admin";
+/* ---------- CONFIG ---------- */
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "change-this-token";
+const IP_FILE = "./allowed-ips.json";
 
-/*
-Generate password hash locally with:
-node -e "require('bcrypt').hash('yourpassword',10).then(console.log)"
-*/
-const ADMIN_HASH =
-  process.env.ADMIN_HASH ||
-  "$2b$10$4X9V5O8H7uA3Q8Xj0l9S2u6xVn1l8y8U5Zc9XgYF8E5OQp1d7Wz1C"; // replace later
+/* ---------- LOAD IPS ---------- */
+let allowedIps = [];
+
+try {
+  if (fs.existsSync(IP_FILE)) {
+    allowedIps = JSON.parse(fs.readFileSync(IP_FILE, "utf8"));
+  }
+} catch {
+  allowedIps = [];
+}
+
+function saveIps() {
+  fs.writeFileSync(IP_FILE, JSON.stringify(allowedIps, null, 2));
+}
 
 /* ---------- PARSERS ---------- */
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-/* ---------- SESSION ---------- */
-app.set("trust proxy", 1); // needed for Render HTTPS
+/* ---------- TRUST PROXY (Render needs this) ---------- */
+app.set("trust proxy", 1);
 
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "change-this-secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: true,
-      httpOnly: true,
-      sameSite: "lax"
-    }
-  })
-);
-
-/* ---------- AUTH MIDDLEWARE ---------- */
-function requireAuth(req, res, next) {
-  if (!req.session.user) {
-    return res.redirect("/");
-  }
-  next();
+/* ---------- GET REAL IP ---------- */
+function getIp(req) {
+  return (
+    req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
+    req.socket.remoteAddress
+  );
 }
 
-/* ---------- LOGIN PAGE ---------- */
-app.get("/", (req, res) => {
-  if (req.session.user) return res.redirect("/dashboard");
+/* ---------- BLOCK NON-ALLOWED IPS ---------- */
+app.use((req, res, next) => {
+  if (allowedIps.length === 0) return next(); // open until first IP added
 
-  res.send(`
-    <h2>Cron Login</h2>
-    <form method="POST" action="/login">
-      <input name="username" placeholder="username" required/>
-      <input name="password" type="password" placeholder="password" required/>
-      <button>Login</button>
-    </form>
-  `);
+  const ip = getIp(req);
+
+  if (!allowedIps.includes(ip)) {
+    return res.status(403).send("Access denied");
+  }
+
+  next();
 });
 
-/* ---------- LOGIN ---------- */
-app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
-
-  if (username !== ADMIN_USER) {
-    return res.send("Login failed");
-  }
-
-  const ok = await bcrypt.compare(password, ADMIN_HASH);
-  if (!ok) {
-    return res.send("Login failed");
-  }
-
-  req.session.user = username;
+/* ---------- ROOT → DASHBOARD ---------- */
+app.get("/", (req, res) => {
   res.redirect("/dashboard");
 });
 
 /* ---------- DASHBOARD ---------- */
-app.get("/dashboard", requireAuth, (req, res) => {
+app.get("/dashboard", (req, res) => {
+  const ip = getIp(req);
+
+  const list = allowedIps
+    .map(
+      x => `<li>${x}
+        <form method="POST" action="/remove-ip">
+          <input type="hidden" name="ip" value="${x}">
+          <input type="hidden" name="token" value="">
+          <button>Remove</button>
+        </form>
+      </li>`
+    )
+    .join("");
+
   res.send(`
     <h1>Cron Dashboard</h1>
-    <p>Logged in as ${req.session.user}</p>
 
-    <ul>
-      <li>Job: cleanup-temp-files</li>
-      <li>Job: backup-db</li>
-      <li>Job: nightly-report</li>
-    </ul>
+    <p><b>Your IP:</b> ${ip}</p>
 
-    <a href="/logout">Logout</a>
+    <h3>Allowed IPs</h3>
+    <ul>${list || "<li>No IPs yet (open access)</li>"}</ul>
+
+    <h3>Add IP</h3>
+    <form method="POST" action="/add-ip">
+      <input name="ip" placeholder="1.2.3.4" required />
+      <input name="token" placeholder="admin token required" required />
+      <button>Add</button>
+    </form>
+
+    <h3>Auto-add my IP</h3>
+    <form method="POST" action="/add-my-ip">
+      <input name="token" placeholder="admin token required" required />
+      <button>Add My IP</button>
+    </form>
   `);
 });
 
-/* ---------- PROTECTED API ---------- */
-app.get("/api/jobs", requireAuth, (req, res) => {
-  res.json([
-    { name: "cleanup-temp-files", schedule: "0 * * * *" },
-    { name: "backup-db", schedule: "0 2 * * *" }
-  ]);
+/* ---------- ADD IP ---------- */
+app.post("/add-ip", (req, res) => {
+  if (req.body.token !== ADMIN_TOKEN) {
+    return res.status(403).send("Invalid token");
+  }
+
+  const ip = req.body.ip?.trim();
+  if (!ip) return res.redirect("/dashboard");
+
+  if (!allowedIps.includes(ip)) {
+    allowedIps.push(ip);
+    saveIps();
+  }
+
+  res.redirect("/dashboard");
 });
 
-/* ---------- LOGOUT ---------- */
-app.get("/logout", requireAuth, (req, res) => {
-  req.session.destroy(() => res.redirect("/"));
+/* ---------- ADD MY IP ---------- */
+app.post("/add-my-ip", (req, res) => {
+  if (req.body.token !== ADMIN_TOKEN) {
+    return res.status(403).send("Invalid token");
+  }
+
+  const ip = getIp(req);
+
+  if (!allowedIps.includes(ip)) {
+    allowedIps.push(ip);
+    saveIps();
+  }
+
+  res.redirect("/dashboard");
+});
+
+/* ---------- REMOVE IP ---------- */
+app.post("/remove-ip", (req, res) => {
+  if (req.body.token !== ADMIN_TOKEN) {
+    return res.status(403).send("Invalid token");
+  }
+
+  const ip = req.body.ip;
+  allowedIps = allowedIps.filter(x => x !== ip);
+  saveIps();
+
+  res.redirect("/dashboard");
 });
 
 /* ---------- SERVER ---------- */

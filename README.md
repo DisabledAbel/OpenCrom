@@ -169,7 +169,7 @@ Example `package.json` minimal dependencies:
 
 ## License
 
-MIT
+GNU GENERAL PUBLIC LICENSE
 
 ---
 

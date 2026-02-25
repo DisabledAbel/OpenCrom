@@ -1,153 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>MiniCron</title>
-
+  <meta charset="utf-8">
+  <title>OpenCrom Setup</title>
   <style>
-    :root{
-      --bg:#0f1115;
-      --card:#171a21;
-      --text:#e6e6e6;
-      --border:#2a2f3a;
-      --accent:#4da3ff;
-    }
-
     body{
-      background:var(--bg);
-      color:var(--text);
-      font-family:system-ui, sans-serif;
-      margin:40px auto;
-      max-width:900px;
-    }
-
-    h1,h3{margin-top:32px}
-
-    input,select{
-      background:var(--card);
-      color:var(--text);
-      border:1px solid var(--border);
-      padding:10px;
-      border-radius:8px;
-      margin:4px;
-    }
-
-    button{
-      background:var(--accent);
-      border:none;
+      font-family: system-ui;
+      background:#0b0f14;
       color:white;
-      padding:10px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:100vh;
+      margin:0;
+    }
+    .card{
+      background:#121821;
+      padding:40px;
+      border-radius:14px;
+      text-align:center;
+      width:320px;
+      box-shadow:0 10px 30px rgba(0,0,0,.4);
+    }
+    button{
+      padding:14px 22px;
+      font-size:16px;
+      border:none;
       border-radius:8px;
+      background:#4da3ff;
+      color:white;
       cursor:pointer;
-    }
-
-    button:hover{opacity:.9}
-
-    table{
-      border-collapse:collapse;
       width:100%;
-      margin-top:14px;
-      background:var(--card);
-      border-radius:10px;
-      overflow:hidden;
     }
-
-    td,th{
-      border-bottom:1px solid var(--border);
-      padding:10px;
-      text-align:left;
+    button:hover{
+      background:#3a8de0;
     }
-
-    tr:last-child td{border-bottom:none}
+    #result{
+      margin-top:18px;
+      opacity:.9;
+      font-size:14px;
+    }
   </style>
 </head>
 <body>
 
-<h1>MiniCron Dashboard</h1>
+<div class="card">
+  <h2>OpenCrom Setup</h2>
+  <p>Click once to allow your IP.</p>
 
-<h3>Add Job</h3>
+  <button onclick="addIP()">Allow My IP</button>
 
-<input id="url" placeholder="https://example.com">
-
-<br>
-
-<!-- clock scheduler -->
-<label>Run every day at:</label>
-<input type="time" id="time">
-
-<button onclick="useClock()">Use Clock</button>
-
-<br>
-
-<label>Or manual cron:</label>
-<input id="cron" placeholder="*/5 * * * *">
-
-<br>
-
-<button onclick="addJob()">Add Job</button>
-
-<h3>Jobs</h3>
-<table id="jobs"></table>
-
-<h3>Recent Logs</h3>
-<table id="logs"></table>
+  <div id="result"></div>
+</div>
 
 <script>
-function useClock(){
-  const t=document.getElementById("time").value;
-  if(!t) return alert("Pick a time first");
-
-  const [h,m]=t.split(":");
-  // daily cron expression
-  document.getElementById("cron").value=`${m} ${h} * * *`;
+async function addIP(){
+  const r = await fetch("/ips/auto",{method:"POST"});
+  const j = await r.json();
+  document.getElementById("result").innerText =
+    "Allowed IP: " + j.added + " ✓";
 }
-
-async function load(){
-  const jobs=await fetch("/api/jobs").then(r=>r.json());
-  const logs=await fetch("/api/logs").then(r=>r.json());
-
-  document.getElementById("jobs").innerHTML=
-    "<tr><th>ID</th><th>URL</th><th>Cron</th><th></th></tr>"+
-    jobs.map(j=>`
-      <tr>
-        <td>${j.id}</td>
-        <td>${j.url}</td>
-        <td>${j.cron}</td>
-        <td><button onclick="del(${j.id})">Delete</button></td>
-      </tr>
-    `).join("");
-
-  document.getElementById("logs").innerHTML=
-    "<tr><th>URL</th><th>Status</th><th>Time</th></tr>"+
-    logs.map(l=>`
-      <tr>
-        <td>${l.url}</td>
-        <td>${l.status}</td>
-        <td>${new Date(l.ran_at).toLocaleString()}</td>
-      </tr>
-    `).join("");
-}
-
-async function addJob(){
-  const url=document.getElementById("url").value;
-  const cron=document.getElementById("cron").value;
-
-  if(!url||!cron) return alert("URL and schedule required");
-
-  await fetch("/api/jobs",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({url,cron})
-  });
-
-  load();
-}
-
-async function del(id){
-  await fetch("/api/jobs/"+id,{method:"DELETE"});
-  load();
-}
-
-load();
 </script>
 
 </body>

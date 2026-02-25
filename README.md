@@ -1,8 +1,4 @@
-# ![OpenCrom](https://img.shields.io/badge/OpenCrom-v1.0-blue) OpenCrom
-
-[![Node.js](https://img.shields.io/badge/node-20.x-green)](https://nodejs.org/)
-[![Render](https://img.shields.io/badge/Render-Deployed-brightgreen)](https://render.com/)
-[![Last Commit](https://img.shields.io/github/last-commit/<your-github-username>/OpenCrom)](https://github.com/<your-github-username>/OpenCrom/commits/main)
+# OpenCrom 🧭
 
 **OpenCrom** is a lightweight, self-hosted cron job scheduler with a browser dashboard and IP-based access control. It’s designed to be deployed with Render and a Postgres database so scheduled jobs persist across redeploys.
 

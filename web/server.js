@@ -1,25 +1,32 @@
 import express from "express";
-import fs from "fs";
-import path from "path";
 import cron from "node-cron";
+import pkg from "pg";
+const { Pool } = pkg;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
 const app = express();
 app.use(express.json());
 app.set("trust proxy", true);
 
-const DATA_DIR = "/data";
-const JOBS_FILE = path.join(DATA_DIR, "jobs.json");
-const IPS_FILE = path.join(DATA_DIR, "allowed-ips.json");
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS jobs (
+      id SERIAL PRIMARY KEY,
+      schedule TEXT NOT NULL,
+      url TEXT NOT NULL
+    );
+  `);
 
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(JOBS_FILE)) fs.writeFileSync(JOBS_FILE, "[]");
-if (!fs.existsSync(IPS_FILE)) fs.writeFileSync(IPS_FILE, "[]");
-
-function readJSON(file) {
-  return JSON.parse(fs.readFileSync(file, "utf8"));
-}
-function writeJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ips (
+      id SERIAL PRIMARY KEY,
+      ip TEXT NOT NULL UNIQUE
+    );
+  `);
 }
 
 function getIP(req) {
@@ -28,11 +35,11 @@ function getIP(req) {
   return req.socket.remoteAddress;
 }
 
-function checkIP(req, res, next) {
-  const allowed = readJSON(IPS_FILE);
-  if (allowed.length === 0) return next(); // first run = open
+async function checkIP(req,res,next){
+  const { rows } = await pool.query("SELECT ip FROM ips");
+  if(rows.length === 0) return next();
   const ip = getIP(req);
-  if (!allowed.includes(ip)) {
+  if(!rows.find(r=>r.ip===ip)){
     return res.status(403).send("IP not allowed");
   }
   next();
@@ -42,55 +49,61 @@ app.use(checkIP);
 
 let tasks = [];
 
-function loadJobs() {
-  tasks.forEach(t => t.stop());
-  tasks = [];
-  const jobs = readJSON(JOBS_FILE);
-  jobs.forEach(job => {
-    const t = cron.schedule(job.schedule, () => {
+async function loadJobs(){
+  tasks.forEach(t=>t.stop());
+  tasks=[];
+
+  const { rows } = await pool.query("SELECT * FROM jobs");
+  rows.forEach(job=>{
+    const t = cron.schedule(job.schedule, ()=>{
       fetch(job.url).catch(()=>{});
     });
     tasks.push(t);
   });
 }
-loadJobs();
 
-app.get("/", (req,res)=>{
-  res.send("OpenCrom running");
+app.get("/",(req,res)=>res.send("OpenCrom running"));
+
+app.get("/jobs", async (req,res)=>{
+  const { rows } = await pool.query("SELECT * FROM jobs ORDER BY id");
+  res.json(rows);
 });
 
-app.get("/jobs",(req,res)=>{
-  res.json(readJSON(JOBS_FILE));
-});
-
-app.post("/jobs",(req,res)=>{
-  const jobs = readJSON(JOBS_FILE);
-  jobs.push(req.body);
-  writeJSON(JOBS_FILE,jobs);
-  loadJobs();
+app.post("/jobs", async (req,res)=>{
+  const { schedule, url } = req.body;
+  await pool.query(
+    "INSERT INTO jobs(schedule,url) VALUES($1,$2)",
+    [schedule,url]
+  );
+  await loadJobs();
   res.json({ok:true});
 });
 
-app.delete("/jobs/:i",(req,res)=>{
-  const jobs = readJSON(JOBS_FILE);
-  jobs.splice(req.params.i,1);
-  writeJSON(JOBS_FILE,jobs);
-  loadJobs();
+app.delete("/jobs/:id", async (req,res)=>{
+  await pool.query("DELETE FROM jobs WHERE id=$1",[req.params.id]);
+  await loadJobs();
   res.json({ok:true});
 });
 
-app.get("/ips",(req,res)=>{
-  res.json(readJSON(IPS_FILE));
+app.get("/ips", async (req,res)=>{
+  const { rows } = await pool.query("SELECT ip FROM ips");
+  res.json(rows);
 });
 
-app.post("/ips",(req,res)=>{
-  const ips = readJSON(IPS_FILE);
-  ips.push(req.body.ip);
-  writeJSON(IPS_FILE,ips);
+app.post("/ips", async (req,res)=>{
+  await pool.query(
+    "INSERT INTO ips(ip) VALUES($1) ON CONFLICT DO NOTHING",
+    [req.body.ip]
+  );
   res.json({ok:true});
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port,()=>{
-  console.log("Server running on",port);
+
+initDB().then(()=>{
+  loadJobs().then(()=>{
+    app.listen(port,()=>{
+      console.log("Server running on",port);
+    });
+  });
 });

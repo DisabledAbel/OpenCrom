@@ -17,37 +17,19 @@ This guide shows **everything required** to deploy it from scratch using GitHub 
 * Safe redeploys (jobs never disappear)
 
 ---
+# ✅ Step 1
+🚀 Get Started with Render
 
-# ✅ Requirements
+[![Render](https://img.shields.io/badge/Render-Sign%20Up-blue?logo=render&style=for-the-badge)](https://render.com)
 
-You need:
+To create an account:
 
-* A GitHub account on GitHub
-* A Render account on Render
-* Basic ability to push files to a repo
+1. Click the **Render** badge above or visit [https://render.com](https://render.com).  
+2. Click **Sign Up** in the top-right corner.  
+3. Choose your signup method: **GitHub**, **GitLab**, or **Email**.  
+4. If using email, confirm your address via the verification email.  
+5. Start deploying your projects!
 
-No server knowledge required.
-
----
-
-# ✅ Step 1 — Upload the Project to GitHub
-
-1. Create a new repository
-2. Upload the project files
-3. Confirm the repo contains:
-
-```
-web/
-  server.js
-  public/
-    index.html
-    dashboard.html
-package.json
-```
-
-Push to GitHub.
-
----
 
 # ✅ Step 2 — Create the Database
 

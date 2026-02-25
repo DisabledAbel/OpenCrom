@@ -1,210 +1,182 @@
-# OpenCrom — Self-Hosted Cron Job Runner (Render Edition)
+# ![OpenCrom](https://img.shields.io/badge/OpenCrom-v1.0-blue) OpenCrom
 
-OpenCrom is a lightweight web-based cron scheduler you can deploy in minutes.
-It lets you schedule URLs to run automatically, manage jobs from a dashboard, and lock access to your own IP.
+[![Node.js](https://img.shields.io/badge/node-20.x-green)](https://nodejs.org/)
+[![Render](https://img.shields.io/badge/Render-Deployed-brightgreen)](https://render.com/)
+[![Last Commit](https://img.shields.io/github/last-commit/<your-github-username>/OpenCrom)](https://github.com/<your-github-username>/OpenCrom/commits/main)
 
-This guide shows **everything required** to deploy it from scratch using GitHub + Render + a free database.
-
----
-
-# ✅ What OpenCrom Does
-
-* Run scheduled HTTP requests (cron jobs)
-* Simple browser dashboard (no CLI needed)
-* One-click “Allow My IP” setup
-* IP-based security (no login system required)
-* Persistent storage using a database
-* Safe redeploys (jobs never disappear)
-
----
-# ✅ Step 1
-🚀 Get Started with Render
-
-[![Render](https://img.shields.io/badge/Render-Sign%20Up-blue?logo=render&style=for-the-badge)](https://render.com)
-
-To create an account:
-
-1. Click the **Render** badge above or visit [https://render.com](https://render.com).  
-2. Click **Sign Up** in the top-right corner.  
-3. Choose your signup method: **GitHub**, **GitLab**, or **Email**.  
-4. If using email, confirm your address via the verification email.  
-5. Start deploying your projects!
-
-
-# ✅ Step 2 — Create the Database
-
-Open Render dashboard:
-
-**New → PostgreSQL**
-
-Use the free plan.
-
-After creation:
-
-Copy:
-
-```
-Internal Database URL
-```
-
-You will need this in the next step.
+**OpenCrom** is a lightweight, self-hosted cron job scheduler with a browser dashboard and IP-based access control. It’s designed to be deployed with Render and a Postgres database so scheduled jobs persist across redeploys.
 
 ---
 
-# ✅ Step 3 — Deploy the Web Service
+## Features
 
-In Render:
-
-**New → Web Service**
-
-Connect your GitHub repo.
-
-Use these settings:
-
-```
-Build Command: npm install
-Start Command: npm start
-```
-
-Add Environment Variable:
-
-```
-DATABASE_URL = (paste the database URL)
-NODE_VERSION = 20
-```
-
-Deploy.
+- Schedule HTTP requests (cron jobs) to arbitrary URLs  
+- Web dashboard (`dashboard.html`) to add / view / delete jobs  
+- One-click “Allow My IP” setup (`index.html`) for first-run bootstrapping  
+- IP allowlist security (no usernames or passwords required)  
+- Postgres-backed persistence (jobs and allowed IPs)  
+- Runs on Node.js + Express + node-cron
 
 ---
 
-# ✅ Step 4 — First Boot Setup
-
-When deployment finishes:
-
-Open your site root:
+## Repository layout
 
 ```
-https://YOUR-SERVICE.onrender.com/
-```
 
-You’ll see the setup page.
+web/
+server.js           # main server (Express) — serves API + static UI
+public/
+index.html        # one-click "Allow My IP" setup page
+dashboard.html    # dashboard: add/view/delete jobs
+package.json
+README.md
 
-Click:
-
-```
-Allow My IP
-```
-
-This locks the app to you automatically.
-
-From now on only your IP can access it.
+````
 
 ---
 
-# ✅ Step 5 — Open the Dashboard
+## Quick Start — Deploy on Render (recommended)
 
-Visit:
+1. Push this repository to a Git host (your repo on GitHub or similar).
 
-```
-https://YOUR-SERVICE.onrender.com/dashboard.html
-```
+2. Create a PostgreSQL database on Render:
+   - Render → **New → PostgreSQL**
+   - Use the free plan
+   - Copy the **Internal Database URL**
 
-From here you can:
+3. Create a Web Service on Render:
+   - Render → **New → Web Service**
+   - Connect your repository
+   - Build Command: `npm install`
+   - Start Command: `npm start`
+   - Add environment variables:
+     ```
+     DATABASE_URL=<your-database-url>
+     NODE_VERSION=20
+     ```
+   - Deploy
 
-* Add cron jobs
-* View jobs
-* Delete jobs
-* Manage everything visually
+4. First-run setup:
+   - Open `https://<your-service>.onrender.com/`
+   - Click **Allow My IP** — this will insert your detected IP into the allowlist so you won’t be locked out.
 
-No terminal required.
-
----
-
-# ✅ How to Add a Job
-
-Example:
-
-**Schedule**
-
-```
-*/5 * * * *
-```
-
-**URL**
-
-```
-https://example.com/api/refresh
-```
-
-This runs every 5 minutes.
+5. Open the dashboard:
+   - `https://<your-service>.onrender.com/dashboard.html`
+   - From there you can add jobs (cron schedule + URL), see current jobs, and delete jobs.
 
 ---
 
-# ✅ Cron Format Reference
+## API (for automation / curl)
 
-```
-* * * * *
+- `GET /jobs` — list jobs  
+- `POST /jobs` — add job (JSON body: `{ "schedule":"*/5 * * * *", "url":"https://example.com/ping" }`)  
+- `DELETE /jobs/:id` — delete job by id  
+
+- `GET /ips` — list allowed IPs  
+- `POST /ips` — add IP manually (JSON body: `{ "ip": "1.2.3.4" }`)  
+- `POST /ips/auto` — server-detected add; useful for first-run (no body required)
+
+> Tip: Use `curl -X POST https://<your-service>.onrender.com/ips/auto` once after deploy if the browser UI is unavailable.
+
+---
+
+## Cron syntax reference
+
+````
+
+---
+
 │ │ │ │ │
 │ │ │ │ └─ Day of week (0-6)
 │ │ │ └── Month (1-12)
 │ │ └──── Day of month (1-31)
-│ └────── Hour (0-23)
-└──────── Minute (0-59)
-```
+│ └──── Hour (0-23)
+└────── Minute (0-59)
+
+````
 
 Examples:
-
-```
-*/5 * * * *      every 5 minutes
-0 * * * *        every hour
-0 0 * * *        every midnight
-0 9 * * 1        Mondays at 9am
-```
+- `*/5 * * * *` — every 5 minutes  
+- `0 * * * *` — every hour on the hour  
+- `0 0 * * *` — daily at midnight  
+- `0 9 * * 1` — every Monday at 09:00
 
 ---
 
-# ✅ Security Model
+## Security model & bootstrapping
 
-OpenCrom uses:
+- On first run the IP allowlist is empty. The app allows access to the root (`/`) and `/ips` (and `/ips/auto`) so you can register your IP.
+- Once at least one IP is present, only requests from allowlisted IPs are permitted.
+- The app uses proxy-aware IP detection (`x-forwarded-for`) and should work behind typical hosting proxies.
 
-* IP allowlist protection
-* Automatic proxy detection
-* No passwords stored
-* No sessions
-* No login UI
-
-Only your IP can manage jobs.
-
----
-
-# ✅ If You Get Locked Out
-
-Open the Render shell or redeploy with a temporary change:
-
-Delete table `ips` in the database, or run:
-
-```
+If you accidentally lock yourself out, use the database shell (Render dashboard) to run:
+```sql
 DELETE FROM ips;
+````
+
+Then reload `https://<your-service>.onrender.com/` and click **Allow My IP** again.
+
+---
+
+## Database / Persistence
+
+* Jobs and allowed IPs are stored in Postgres tables (`jobs`, `ips`).
+* Deploys and restarts do NOT delete entries — persistence is handled by the DB.
+
+---
+
+## Dependencies
+
+* Node.js 20+
+* Express
+* node-cron
+* pg (Postgres driver)
+
+Example `package.json` minimal dependencies:
+
+```json
+{
+  "name": "opencrom",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "web/server.js",
+  "scripts": {
+    "start": "node web/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "pg": "^8.11.5"
+  }
+}
 ```
 
-Then reload the site and press **Allow My IP** again.
+---
+
+## Recommended improvements (optional)
+
+* Add job execution logs (success / failure / response code)
+* Add enable / disable toggle per job
+* Add cron helper UI to build schedules visually
+* Add export/import backup for jobs (JSON)
+* Add admin recovery token or secondary admin IP
 
 ---
 
-# ✅ Updating the App
+## Troubleshooting
 
-Whenever you push changes to GitHub:
-
-Render redeploys automatically.
-
-Your jobs remain safe because they’re stored in the database.
+* `EACCES: permission denied, mkdir '/data'` — occurs if code expects a mounted disk. If you cannot mount a disk, ensure you use Postgres persistence (this project’s default for Render).
+* If the dashboard returns `403 IP not allowed` on first load: call `POST /ips/auto` (or use the UI root page to click Allow My IP).
+* If jobs aren’t running: verify `node-cron` schedules are valid and that the URLs are reachable from Render.
 
 ---
 
-# ✅ Tech Stack
+## License
 
-* Backend: Node.js on Node.js
-* Server framework: Express
-* Database: Render PostgreSQL
-* Scheduler: node-cron
-* Frontend: static HTML dashboard
+MIT
+
+---
+
+## Credits
+
+OpenCrom — built to be small, secure, and deployable on Render with a free Postgres DB. Pull requests and improvements welcome.

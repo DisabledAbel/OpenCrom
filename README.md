@@ -1,257 +1,228 @@
-# Cron Job Dashboard (IP-Protected)
+# OpenCrom — Self-Hosted Cron Job Runner (Render Edition)
 
-A self-hosted cron job control panel designed for deployment on Render.
+OpenCrom is a lightweight web-based cron scheduler you can deploy in minutes.
+It lets you schedule URLs to run automatically, manage jobs from a dashboard, and lock access to your own IP.
 
-This app lets you:
-
-- Schedule cron jobs from a web dashboard  
-- Keep jobs private using IP allow-listing  
-- Avoid logins/passwords entirely  
-- Control which IPs can access the app  
-- Persist allowed IPs and jobs on disk  
-
-The dashboard automatically blocks anyone whose IP is not approved.
+This guide shows **everything required** to deploy it from scratch using GitHub + Render + a free database.
 
 ---
 
-## Security
-- IP-based access control (no login required)
-- Admin token required to modify allowed IPs
-- Automatic blocking before UI loads
-- Trust proxy enabled for correct client IP detection on hosting platforms
+# ✅ What OpenCrom Does
 
-## Dashboard
-- Shows your current IP
-- Lists all allowed IPs
-- Add/remove IPs from UI
-- Auto-add your current IP button
-
-## Cron Engine
-- Schedule background jobs
-- Jobs persist between restarts
-- Designed for lightweight automation tasks
+* Run scheduled HTTP requests (cron jobs)
+* Simple browser dashboard (no CLI needed)
+* One-click “Allow My IP” setup
+* IP-based security (no login system required)
+* Persistent storage using a database
+* Safe redeploys (jobs never disappear)
 
 ---
 
-# Folder Structure
+# ✅ Requirements
+
+You need:
+
+* A GitHub account on GitHub
+* A Render account on Render
+* Basic ability to push files to a repo
+
+No server knowledge required.
+
+---
+
+# ✅ Step 1 — Upload the Project to GitHub
+
+1. Create a new repository
+2. Upload the project files
+3. Confirm the repo contains:
 
 ```
+web/
+  server.js
+  public/
+    index.html
+    dashboard.html
+package.json
+```
 
-project-root/
-│
-├── web/
-│   └── server.js
-│
-├── allowed-ips.json      # auto-generated
-├── jobs.json             # cron job storage
-├── package.json
-└── README.md
+Push to GitHub.
 
+---
+
+# ✅ Step 2 — Create the Database
+
+Open Render dashboard:
+
+**New → PostgreSQL**
+
+Use the free plan.
+
+After creation:
+
+Copy:
+
+```
+Internal Database URL
+```
+
+You will need this in the next step.
+
+---
+
+# ✅ Step 3 — Deploy the Web Service
+
+In Render:
+
+**New → Web Service**
+
+Connect your GitHub repo.
+
+Use these settings:
+
+```
+Build Command: npm install
+Start Command: npm start
+```
+
+Add Environment Variable:
+
+```
+DATABASE_URL = (paste the database URL)
+NODE_VERSION = 20
+```
+
+Deploy.
+
+---
+
+# ✅ Step 4 — First Boot Setup
+
+When deployment finishes:
+
+Open your site root:
+
+```
+https://YOUR-SERVICE.onrender.com/
+```
+
+You’ll see the setup page.
+
+Click:
+
+```
+Allow My IP
+```
+
+This locks the app to you automatically.
+
+From now on only your IP can access it.
+
+---
+
+# ✅ Step 5 — Open the Dashboard
+
+Visit:
+
+```
+https://YOUR-SERVICE.onrender.com/dashboard.html
+```
+
+From here you can:
+
+* Add cron jobs
+* View jobs
+* Delete jobs
+* Manage everything visually
+
+No terminal required.
+
+---
+
+# ✅ How to Add a Job
+
+Example:
+
+**Schedule**
+
+```
+*/5 * * * *
+```
+
+**URL**
+
+```
+https://example.com/api/refresh
+```
+
+This runs every 5 minutes.
+
+---
+
+# ✅ Cron Format Reference
+
+```
+* * * * *
+│ │ │ │ │
+│ │ │ │ └─ Day of week (0-6)
+│ │ │ └── Month (1-12)
+│ │ └──── Day of month (1-31)
+│ └────── Hour (0-23)
+└──────── Minute (0-59)
+```
+
+Examples:
+
+```
+*/5 * * * *      every 5 minutes
+0 * * * *        every hour
+0 0 * * *        every midnight
+0 9 * * 1        Mondays at 9am
 ```
 
 ---
 
-# Environment Variables
+# ✅ Security Model
 
-You **must** set this in Render:
+OpenCrom uses:
 
-```
+* IP allowlist protection
+* Automatic proxy detection
+* No passwords stored
+* No sessions
+* No login UI
 
-ADMIN_TOKEN=your_secret_token_here
-
-```
-
-Use a long random string.
-
-This token is required to:
-
-- Add IPs
-- Remove IPs
-- Auto-add your own IP
-
-Without it, nobody can modify access rules.
+Only your IP can manage jobs.
 
 ---
 
-# Local Development
+# ✅ If You Get Locked Out
 
-Install dependencies:
+Open the Render shell or redeploy with a temporary change:
 
-```
-
-npm install
+Delete table `ips` in the database, or run:
 
 ```
-
-Run the server:
-
+DELETE FROM ips;
 ```
 
-node web/server.js
-
-```
-
-Open:
-
-```
-
-[http://localhost:3000](http://localhost:3000)
-
-```
+Then reload the site and press **Allow My IP** again.
 
 ---
 
-# Deploying to Render
+# ✅ Updating the App
 
-## 1. Push repo to GitHub
+Whenever you push changes to GitHub:
 
-Make sure these files exist:
+Render redeploys automatically.
 
-- package.json
-- web/server.js
-- README.md
-
-Do NOT commit:
-
-- allowed-ips.json
-- jobs.json
-
-Add them to `.gitignore`.
+Your jobs remain safe because they’re stored in the database.
 
 ---
 
-## 2. Create a Web Service in Render
+# ✅ Tech Stack
 
-Settings:
-
-- Runtime: Node
-- Build command:
-```
-
-npm install
-
-```
-- Start command:
-```
-
-node web/server.js
-
-```
-
----
-
-## 3. Add Environment Variable
-
-In Render dashboard:
-
-```
-
-ADMIN_TOKEN=your_secret_token
-
-```
-
-Redeploy after adding.
-
----
-
-# First Launch Flow
-
-1. Open your Render URL
-2. Dashboard loads immediately
-3. Add your IP using admin token
-4. After that:
-   - Only allowed IPs can access the app
-   - Everyone else gets blocked
-
-If you forget to add your IP, the app remains open until the first IP is saved.
-
----
-
-# How IP Detection Works
-
-The server checks:
-
-1. `x-forwarded-for` header (from proxy)
-2. Socket remote address fallback
-
-Trust proxy is enabled so real client IPs work correctly behind hosting platforms.
-
----
-
-# Resetting Access If Locked Out
-
-You have three options:
-
-### Option A — Delete IP file
-Remove:
-
-```
-
-allowed-ips.json
-
-```
-
-Then redeploy.
-
-App becomes open again.
-
----
-
-### Option B — Use Render Shell
-Open Render shell and run:
-
-```
-
-rm allowed-ips.json
-
-```
-
-Restart service.
-
----
-
-### Option C — Change Admin Token
-Update:
-
-```
-
-ADMIN_TOKEN
-
-```
-
-Redeploy.
-
----
-
-# Production Recommendations
-
-- Always keep admin token private
-- Allow only your home IP or static ISP range
-- Consider allowing multiple backup IPs
-- Use HTTPS (Render already does this)
-
----
-
-# Future Improvements (optional)
-
-Possible upgrades:
-
-- CIDR network allow-listing
-- Job history logs
-- Dark mode UI
-- Cron syntax helper
-- Export/import jobs
-- Multi-user admin roles
-- First-run setup wizard
-
----
-
-# License
-
-MIT — free to use, modify, and deploy.
-
----
-
-# Author Notes
-
-This project is intentionally simple, self-contained, and designed to run on low-resource hosting 
+* Backend: Node.js on Node.js
+* Server framework: Express
+* Database: Render PostgreSQL
+* Scheduler: node-cron
+* Frontend: static HTML dashboard

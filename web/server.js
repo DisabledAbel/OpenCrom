@@ -1,145 +1,96 @@
 import express from "express";
 import fs from "fs";
+import path from "path";
+import cron from "node-cron";
 
 const app = express();
-
-/* ---------- CONFIG ---------- */
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "change-this-token";
-const IP_FILE = "./allowed-ips.json";
-
-/* ---------- LOAD IPS ---------- */
-let allowedIps = [];
-
-try {
-  if (fs.existsSync(IP_FILE)) {
-    allowedIps = JSON.parse(fs.readFileSync(IP_FILE, "utf8"));
-  }
-} catch {
-  allowedIps = [];
-}
-
-function saveIps() {
-  fs.writeFileSync(IP_FILE, JSON.stringify(allowedIps, null, 2));
-}
-
-/* ---------- PARSERS ---------- */
-app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.set("trust proxy", true);
 
-/* ---------- TRUST PROXY (Render needs this) ---------- */
-app.set("trust proxy", 1);
+const DATA_DIR = "/data";
+const JOBS_FILE = path.join(DATA_DIR, "jobs.json");
+const IPS_FILE = path.join(DATA_DIR, "allowed-ips.json");
 
-/* ---------- GET REAL IP ---------- */
-function getIp(req) {
-  return (
-    req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
-    req.socket.remoteAddress
-  );
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(JOBS_FILE)) fs.writeFileSync(JOBS_FILE, "[]");
+if (!fs.existsSync(IPS_FILE)) fs.writeFileSync(IPS_FILE, "[]");
+
+function readJSON(file) {
+  return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+function writeJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-/* ---------- BLOCK NON-ALLOWED IPS ---------- */
-app.use((req, res, next) => {
-  if (allowedIps.length === 0) return next(); // open until first IP added
+function getIP(req) {
+  const xf = req.headers["x-forwarded-for"];
+  if (xf) return xf.split(",")[0].trim();
+  return req.socket.remoteAddress;
+}
 
-  const ip = getIp(req);
-
-  if (!allowedIps.includes(ip)) {
-    return res.status(403).send("Access denied");
+function checkIP(req, res, next) {
+  const allowed = readJSON(IPS_FILE);
+  if (allowed.length === 0) return next(); // first run = open
+  const ip = getIP(req);
+  if (!allowed.includes(ip)) {
+    return res.status(403).send("IP not allowed");
   }
-
   next();
+}
+
+app.use(checkIP);
+
+let tasks = [];
+
+function loadJobs() {
+  tasks.forEach(t => t.stop());
+  tasks = [];
+  const jobs = readJSON(JOBS_FILE);
+  jobs.forEach(job => {
+    const t = cron.schedule(job.schedule, () => {
+      fetch(job.url).catch(()=>{});
+    });
+    tasks.push(t);
+  });
+}
+loadJobs();
+
+app.get("/", (req,res)=>{
+  res.send("OpenCrom running");
 });
 
-/* ---------- ROOT → DASHBOARD ---------- */
-app.get("/", (req, res) => {
-  res.redirect("/dashboard");
+app.get("/jobs",(req,res)=>{
+  res.json(readJSON(JOBS_FILE));
 });
 
-/* ---------- DASHBOARD ---------- */
-app.get("/dashboard", (req, res) => {
-  const ip = getIp(req);
-
-  const list = allowedIps
-    .map(
-      x => `<li>${x}
-        <form method="POST" action="/remove-ip">
-          <input type="hidden" name="ip" value="${x}">
-          <input type="hidden" name="token" value="">
-          <button>Remove</button>
-        </form>
-      </li>`
-    )
-    .join("");
-
-  res.send(`
-    <h1>Cron Dashboard</h1>
-
-    <p><b>Your IP:</b> ${ip}</p>
-
-    <h3>Allowed IPs</h3>
-    <ul>${list || "<li>No IPs yet (open access)</li>"}</ul>
-
-    <h3>Add IP</h3>
-    <form method="POST" action="/add-ip">
-      <input name="ip" placeholder="1.2.3.4" required />
-      <input name="token" placeholder="admin token required" required />
-      <button>Add</button>
-    </form>
-
-    <h3>Auto-add my IP</h3>
-    <form method="POST" action="/add-my-ip">
-      <input name="token" placeholder="admin token required" required />
-      <button>Add My IP</button>
-    </form>
-  `);
+app.post("/jobs",(req,res)=>{
+  const jobs = readJSON(JOBS_FILE);
+  jobs.push(req.body);
+  writeJSON(JOBS_FILE,jobs);
+  loadJobs();
+  res.json({ok:true});
 });
 
-/* ---------- ADD IP ---------- */
-app.post("/add-ip", (req, res) => {
-  if (req.body.token !== ADMIN_TOKEN) {
-    return res.status(403).send("Invalid token");
-  }
-
-  const ip = req.body.ip?.trim();
-  if (!ip) return res.redirect("/dashboard");
-
-  if (!allowedIps.includes(ip)) {
-    allowedIps.push(ip);
-    saveIps();
-  }
-
-  res.redirect("/dashboard");
+app.delete("/jobs/:i",(req,res)=>{
+  const jobs = readJSON(JOBS_FILE);
+  jobs.splice(req.params.i,1);
+  writeJSON(JOBS_FILE,jobs);
+  loadJobs();
+  res.json({ok:true});
 });
 
-/* ---------- ADD MY IP ---------- */
-app.post("/add-my-ip", (req, res) => {
-  if (req.body.token !== ADMIN_TOKEN) {
-    return res.status(403).send("Invalid token");
-  }
-
-  const ip = getIp(req);
-
-  if (!allowedIps.includes(ip)) {
-    allowedIps.push(ip);
-    saveIps();
-  }
-
-  res.redirect("/dashboard");
+app.get("/ips",(req,res)=>{
+  res.json(readJSON(IPS_FILE));
 });
 
-/* ---------- REMOVE IP ---------- */
-app.post("/remove-ip", (req, res) => {
-  if (req.body.token !== ADMIN_TOKEN) {
-    return res.status(403).send("Invalid token");
-  }
-
-  const ip = req.body.ip;
-  allowedIps = allowedIps.filter(x => x !== ip);
-  saveIps();
-
-  res.redirect("/dashboard");
+app.post("/ips",(req,res)=>{
+  const ips = readJSON(IPS_FILE);
+  ips.push(req.body.ip);
+  writeJSON(IPS_FILE,ips);
+  res.json({ok:true});
 });
 
-/* ---------- SERVER ---------- */
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on", PORT));
+const port = process.env.PORT || 3000;
+app.listen(port,()=>{
+  console.log("Server running on",port);
+});

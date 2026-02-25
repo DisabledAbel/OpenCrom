@@ -1,18 +1,13 @@
 {
-  "name": "render-cpp-node-sqlite",
-  "version": "1.0.0",
+  "name": "opencrom",
   "type": "module",
-  "main": "src/web/server.js",
+  "version": "1.0.0",
+  "main": "web/server.js",
   "scripts": {
-    "start": "node src/web/server.js",
-    "build-cpp": "g++ src/cpp/hello.cpp -o src/cpp/hello",
-    "postinstall": "npm run build-cpp"
+    "start": "node web/server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "sqlite3": "^5.1.6",
-    "express-session": "^1.17.3",
-    "connect-sqlite3": "^0.9.0"
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3"
   }
 }

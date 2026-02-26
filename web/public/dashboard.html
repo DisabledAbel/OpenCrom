@@ -4,60 +4,24 @@
 <meta charset="utf-8">
 <title>OpenCrom Dashboard</title>
 <style>
-body {
-  font-family: system-ui;
-  background: #0b0f14;
-  color: white;
-  margin: 0;
-}
-.wrap {
-  max-width: 900px;
-  margin: 60px auto;
-  padding: 30px;
-  background: #121821;
-  border-radius: 14px;
-  box-shadow: 0 10px 40px rgba(0,0,0,.45);
-}
-h1 { margin-top: 0; }
-input {
-  width: 100%;
-  padding: 12px;
-  margin: 8px 0;
-  border-radius: 8px;
-  border: none;
-  background: #1a2230;
-  color: white;
-}
-button {
-  padding: 10px 16px;
-  border: none;
-  border-radius: 8px;
-  background: #4da3ff;
-  color: white;
-  cursor: pointer;
-}
-button:hover { background: #3a8de0; }
-.job {
-  padding: 12px;
-  border-radius: 10px;
-  background: #1a2230;
-  margin-top: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.small { opacity: .8; font-size: 13px; }
-.delete { background: #ff5c5c; }
-.delete:hover { background: #e04848; }
-.toggle { background: #ffae42; }
-.toggle:hover { background: #e69936; }
-.logs { background: #42ffae; }
-.logs:hover { background: #36e699; }
-.flex { display: flex; gap: 8px; align-items: center; }
+body { font-family: system-ui; background:#0b0f14; color:white; margin:0; }
+.wrap { max-width:900px; margin:60px auto; padding:30px; background:#121821; border-radius:14px; box-shadow:0 10px 40px rgba(0,0,0,.45); }
+h1{margin-top:0;}
+input{width:100%;padding:12px;margin:8px 0;border-radius:8px;border:none;background:#1a2230;color:white;}
+button{padding:10px 16px;border:none;border-radius:8px;background:#4da3ff;color:white;cursor:pointer;}
+button:hover{background:#3a8de0;}
+.job{padding:12px;border-radius:10px;background:#1a2230;margin-top:10px;display:flex;justify-content:space-between;align-items:center;}
+.small{opacity:.8;font-size:13px;}
+.delete{background:#ff5c5c;}
+.delete:hover{background:#e04848;}
+.toggle{background:#ffae42;}
+.toggle:hover{background:#e69936;}
+.logs{background:#42ffae;}
+.logs:hover{background:#36e699;}
+.flex{display:flex;gap:8px;align-items:center;}
 </style>
 </head>
 <body>
-
 <div class="wrap">
 <h1>OpenCrom Dashboard</h1>
 
@@ -76,18 +40,17 @@ async function loadJobs() {
   const jobs = await r.json();
   const el = document.getElementById("jobs");
   el.innerHTML = "";
-
-  jobs.forEach(j => {
-    const div = document.createElement("div");
-    div.className = "job";
-    div.innerHTML = `
+  jobs.forEach(j=>{
+    const div=document.createElement("div");
+    div.className="job";
+    div.innerHTML=`
       <div>
         <b>${j.schedule}</b>
         <div class="small">${j.url}</div>
-        <div class="small">Status: ${j.enabled ? "Enabled" : "Disabled"}</div>
+        <div class="small">Status: ${j.enabled?"Enabled":"Disabled"}</div>
       </div>
       <div class="flex">
-        <button class="toggle" onclick="toggle(${j.id})">${j.enabled ? "Disable" : "Enable"}</button>
+        <button class="toggle" onclick="toggle(${j.id})">${j.enabled?"Disable":"Enable"}</button>
         <button class="delete" onclick="del(${j.id})">Delete</button>
         <button class="logs" onclick="viewLogs(${j.id})">Logs</button>
       </div>
@@ -96,48 +59,42 @@ async function loadJobs() {
   });
 }
 
-async function addJob() {
-  const schedule = document.getElementById("schedule").value;
-  const url = document.getElementById("url").value;
-  if (!schedule || !url) return alert("Please provide schedule and URL");
-  await fetch("/jobs", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ schedule, url })
-  });
-  document.getElementById("schedule").value = "";
-  document.getElementById("url").value = "";
+async function addJob(){
+  const schedule=document.getElementById("schedule").value;
+  const url=document.getElementById("url").value;
+  if(!schedule||!url)return alert("Please provide schedule and URL");
+  await fetch("/jobs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({schedule,url})});
+  document.getElementById("schedule").value="";
+  document.getElementById("url").value="";
   loadJobs();
 }
 
-async function del(id) {
-  if (!confirm("Delete this job?")) return;
-  await fetch("/jobs/" + id, { method: "DELETE" });
+async function del(id){
+  if(!confirm("Delete this job?")) return;
+  await fetch("/jobs/"+id,{method:"DELETE"});
   loadJobs();
 }
 
-async function toggle(id) {
-  const r = await fetch("/jobs/" + id + "/toggle", { method: "POST" });
+async function toggle(id){
+  await fetch("/jobs/"+id+"/toggle",{method:"POST"});
   loadJobs();
 }
 
-async function viewLogs(id) {
-  const r = await fetch("/logs");
-  const logs = await r.json();
-  const filtered = logs.filter(l => l.job_id === id);
-  if (filtered.length === 0) return alert("No logs yet for this job");
-  let out = filtered.map(l => {
-    let status = l.success ? "✔" : "✖";
-    let code = l.status_code ? ` [${l.status_code}]` : "";
-    let err = l.error ? ` Error: ${l.error}` : "";
+async function viewLogs(id){
+  const r=await fetch("/logs");
+  const logs=await r.json();
+  const filtered=logs.filter(l=>l.job_id===id);
+  if(filtered.length===0) return alert("No logs yet for this job");
+  let out=filtered.map(l=>{
+    let status=l.success?"✔":"✖";
+    let code=l.status_code?` [${l.status_code}]`:"";
+    let err=l.error?` Error: ${l.error}`:"";
     return `${l.timestamp}: ${status}${code}${err}`;
   }).join("\n");
   alert(out);
 }
 
-// Initial load
 loadJobs();
 </script>
-
 </body>
 </html>

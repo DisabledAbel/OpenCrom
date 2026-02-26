@@ -19,7 +19,7 @@ app.use(express.json());
 app.set("trust proxy", true);
 app.use(express.static(path.join(__dirname, "public")));
 
-// ---- DB INIT ----
+// ---- Backend SQL Initialization ----
 async function initDB() {
   // Create jobs table if missing
   await pool.query(`
@@ -30,7 +30,7 @@ async function initDB() {
     );
   `);
 
-  // Check if 'enabled' column exists
+  // Add 'enabled' column if missing
   const { rows } = await pool.query(`
     SELECT column_name 
     FROM information_schema.columns 
@@ -38,10 +38,13 @@ async function initDB() {
   `);
 
   if (rows.length === 0) {
-    await pool.query(`ALTER TABLE jobs ADD COLUMN enabled BOOLEAN DEFAULT TRUE`);
+    await pool.query(`
+      ALTER TABLE jobs ADD COLUMN enabled BOOLEAN DEFAULT TRUE
+    `);
+    console.log("Added 'enabled' column to jobs table");
   }
 
-  // IP table
+  // IP allowlist table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS ips (
       id SERIAL PRIMARY KEY,
@@ -60,6 +63,8 @@ async function initDB() {
       error TEXT
     );
   `);
+
+  console.log("Database initialized successfully");
 }
 
 // ---- IP Detection ----
@@ -69,7 +74,7 @@ function getIP(req) {
   return req.socket.remoteAddress;
 }
 
-// ---- IP Protection ----
+// ---- IP Protection Middleware ----
 async function checkIP(req, res, next) {
   const { rows } = await pool.query("SELECT ip FROM ips");
   if (rows.length === 0 && (req.path === "/" || req.path.startsWith("/ips"))) return next();
@@ -79,30 +84,33 @@ async function checkIP(req, res, next) {
 }
 app.use(checkIP);
 
-// ---- Cron Jobs Loader ----
+// ---- Backend Job Runner ----
 let tasks = [];
 
 async function loadJobs() {
+  // Stop old tasks
   tasks.forEach(t => t.stop());
   tasks = [];
 
   const { rows } = await pool.query("SELECT * FROM jobs WHERE enabled=TRUE");
   rows.forEach(job => {
-    const t = cron.schedule(job.schedule, async () => {
+    const task = cron.schedule(job.schedule, async () => {
       try {
-        const r = await fetch(job.url);
+        const res = await fetch(job.url);
         await pool.query(
           "INSERT INTO logs(job_id, success, status_code) VALUES($1,$2,$3)",
-          [job.id, r.ok, r.status]
+          [job.id, res.ok, res.status]
         );
-      } catch (e) {
+        console.log(`[Job ${job.id}] ${job.url} => ${res.status}`);
+      } catch (err) {
         await pool.query(
           "INSERT INTO logs(job_id, success, error) VALUES($1,$2,$3)",
-          [job.id, false, e.message]
+          [job.id, false, err.message]
         );
+        console.log(`[Job ${job.id}] ${job.url} => ERROR: ${err.message}`);
       }
     });
-    tasks.push(t);
+    tasks.push(task);
   });
 }
 
@@ -169,5 +177,5 @@ app.post("/ips/auto", async (req, res) => {
 const port = process.env.PORT || 3000;
 initDB()
   .then(() => loadJobs())
-  .then(() => app.listen(port, () => console.log("OpenCrom running on port", port)))
+  .then(() => app.listen(port, () => console.log("OpenCrom running and jobs scheduled.")))
   .catch(err => console.error("Failed to start server:", err));

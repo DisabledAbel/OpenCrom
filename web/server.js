@@ -3,6 +3,7 @@ import cron from "node-cron";
 import pkg from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
+import fetch from "node-fetch";
 
 const { Pool } = pkg;
 const __filename = fileURLToPath(import.meta.url);
@@ -20,7 +21,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // ---- DB INIT ----
 async function initDB() {
-  // Jobs table
+  // Create jobs table if missing
   await pool.query(`
     CREATE TABLE IF NOT EXISTS jobs (
       id SERIAL PRIMARY KEY,
@@ -29,11 +30,15 @@ async function initDB() {
     );
   `);
 
-  // Add 'enabled' column if missing
-  try {
+  // Check if 'enabled' column exists
+  const { rows } = await pool.query(`
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_name='jobs' AND column_name='enabled';
+  `);
+
+  if (rows.length === 0) {
     await pool.query(`ALTER TABLE jobs ADD COLUMN enabled BOOLEAN DEFAULT TRUE`);
-  } catch (err) {
-    if (err.code !== "42703") throw err; // ignore if column exists
   }
 
   // IP table
@@ -72,7 +77,6 @@ async function checkIP(req, res, next) {
   if (!rows.find(r => r.ip === ip)) return res.status(403).send("IP not allowed: " + ip);
   next();
 }
-
 app.use(checkIP);
 
 // ---- Cron Jobs Loader ----

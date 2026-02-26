@@ -149,16 +149,6 @@ Example `package.json` minimal dependencies:
 
 ---
 
-## Recommended improvements (optional)
-
-* Add job execution logs (success / failure / response code)
-* Add enable / disable toggle per job
-* Add cron helper UI to build schedules visually
-* Add export/import backup for jobs (JSON)
-* Add admin recovery token or secondary admin IP
-
----
-
 ## Troubleshooting
 
 * `EACCES: permission denied, mkdir '/data'` — occurs if code expects a mounted disk. If you cannot mount a disk, ensure you use Postgres persistence (this project’s default for Render).

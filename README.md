@@ -1,168 +1,317 @@
-# OpenCrom 🧭
+# OpenCrom
 
-**OpenCrom** is a lightweight, self-hosted cron job scheduler with a browser dashboard and IP-based access control. It’s designed to be deployed with Render and a Postgres database so scheduled jobs persist across redeploys.
+> Lightweight, serverless cron job scheduler built on Cloudflare Workers + D1.
+
+OpenCrom is a globally distributed, edge-native cron system designed for developers who want reliable scheduled HTTP execution without running servers, managing background workers, or fighting hosting provider sleep policies.
+
+Built on:
+
+* Cloudflare
+* Cloudflare Workers
+* Cloudflare D1
+
+---
+
+## Why OpenCrom?
+
+Traditional cron setups require:
+
+* Always-on servers
+* Background workers
+* VPS management
+* Paid hosting tiers
+* Complex deployment pipelines
+
+OpenCrom removes all of that.
+
+You get:
+
+* Global cron execution
+* Serverless deployment
+* Built-in job logging
+* Enable/disable toggles
+* HTTP-based job execution
+* No idle timeout hacks
+* No self-pinging
+* No background daemons
+
+Everything runs at the edge.
 
 ---
 
 ## Features
 
-- Schedule HTTP requests (cron jobs) to arbitrary URLs  
-- Web dashboard (`dashboard.html`) to add / view / delete jobs  
-- One-click “Allow My IP” setup (`index.html`) for first-run bootstrapping  
-- IP allowlist security (no usernames or passwords required)  
-- Postgres-backed persistence (jobs and allowed IPs)  
-- Runs on Node.js + Express + node-cron
+* Scheduled execution via Cloudflare Cron Triggers
+* Enable / disable jobs per record
+* HTTP job execution (GET / POST)
+* Execution logs (success / failure / response code)
+* D1-backed persistence
+* Fully serverless
+* Zero infrastructure management
 
 ---
 
-## Repository layout
+## Architecture
 
 ```
+Cloudflare Cron Trigger
+        ↓
+Cloudflare Worker
+        ↓
+Fetch enabled jobs from D1
+        ↓
+Execute HTTP requests
+        ↓
+Store logs in D1
+```
 
-web/
-server.js           # main server (Express) — serves API + static UI
-public/
-index.html        # one-click "Allow My IP" setup page
-dashboard.html    # dashboard: add/view/delete jobs
-package.json
-README.md
-
-````
-
----
-
-## Quick Start — Deploy on Render (recommended)
-
-1. Push this repository to a Git host (your repo on GitHub or similar).
-
-2. Create a PostgreSQL database on Render:
-   - Render → **New → PostgreSQL**
-   - Use the free plan
-   - Copy the **Internal Database URL**
-
-3. Create a Web Service on Render:
-   - Render → **New → Web Service**
-   - Connect your repository
-   - Build Command: `npm install`
-   - Start Command: `npm start`
-   - Add environment variables:
-     ```
-     DATABASE_URL=<your-database-url>
-     NODE_VERSION=20
-     ```
-   - Deploy
-
-4. First-run setup:
-   - Open `https://<your-service>.onrender.com/`
-   - Click **Allow My IP** — this will insert your detected IP into the allowlist so you won’t be locked out.
-
-5. Open the dashboard:
-   - `https://<your-service>.onrender.com/dashboard.html`
-   - From there you can add jobs (cron schedule + URL), see current jobs, and delete jobs.
+No servers. No containers. No long-running processes.
 
 ---
 
-## API (for automation / curl)
+## Installation
 
-- `GET /jobs` — list jobs  
-- `POST /jobs` — add job (JSON body: `{ "schedule":"*/5 * * * *", "url":"https://example.com/ping" }`)  
-- `DELETE /jobs/:id` — delete job by id  
+### 1. Install Wrangler CLI
 
-- `GET /ips` — list allowed IPs  
-- `POST /ips` — add IP manually (JSON body: `{ "ip": "1.2.3.4" }`)  
-- `POST /ips/auto` — server-detected add; useful for first-run (no body required)
+```bash
+npm install -g wrangler
+```
 
-> Tip: Use `curl -X POST https://<your-service>.onrender.com/ips/auto` once after deploy if the browser UI is unavailable.
+### 2. Clone the Repository
 
----
+```bash
+git clone https://github.com/DisabledAbel/OpenCrom.git
+cd OpenCrom
+```
 
-## Cron syntax reference
+### 3. Create D1 Database
 
-````
+```bash
+wrangler d1 create opencrom-db
+```
 
----
-
-│ │ │ │ │
-│ │ │ │ └─ Day of week (0-6)
-│ │ │ └── Month (1-12)
-│ │ └──── Day of month (1-31)
-│ └──── Hour (0-23)
-└────── Minute (0-59)
-
-````
-
-Examples:
-- `*/5 * * * *` — every 5 minutes  
-- `0 * * * *` — every hour on the hour  
-- `0 0 * * *` — daily at midnight  
-- `0 9 * * 1` — every Monday at 09:00
+Copy the generated `database_id`.
 
 ---
 
-## Security model & bootstrapping
+### 4. Configure `wrangler.toml`
 
-- On first run the IP allowlist is empty. The app allows access to the root (`/`) and `/ips` (and `/ips/auto`) so you can register your IP.
-- Once at least one IP is present, only requests from allowlisted IPs are permitted.
-- The app uses proxy-aware IP detection (`x-forwarded-for`) and should work behind typical hosting proxies.
+```toml
+name = "opencrom"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
 
-If you accidentally lock yourself out, use the database shell (Render dashboard) to run:
+[triggers]
+crons = ["*/15 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "opencrom-db"
+database_id = "<your-database-id>"
+```
+
+---
+
+### 5. Apply Schema
+
+Create `schema.sql`:
+
 ```sql
-DELETE FROM ips;
-````
+CREATE TABLE jobs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  method TEXT DEFAULT 'GET',
+  enabled INTEGER DEFAULT 1
+);
 
-Then reload `https://<your-service>.onrender.com/` and click **Allow My IP** again.
+CREATE TABLE job_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_id INTEGER,
+  status TEXT,
+  response_code INTEGER,
+  executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Run:
+
+```bash
+wrangler d1 execute opencrom-db --file=schema.sql
+```
 
 ---
 
-## Database / Persistence
+### 6. Deploy
 
-* Jobs and allowed IPs are stored in Postgres tables (`jobs`, `ips`).
-* Deploys and restarts do NOT delete entries — persistence is handled by the DB.
+```bash
+wrangler deploy
+```
+
+Done.
+
+Your cron is live.
 
 ---
 
-## Dependencies
+## Cron Schedule
 
-* Node.js 20+
-* Express
-* node-cron
-* pg (Postgres driver)
+Defined in `wrangler.toml`:
 
-Example `package.json` minimal dependencies:
+```
+*/15 * * * *
+```
 
-```json
-{
-  "name": "opencrom",
-  "type": "module",
-  "version": "1.0.0",
-  "main": "web/server.js",
-  "scripts": {
-    "start": "node web/server.js"
-  },
-  "dependencies": {
-    "express": "^4.19.2",
-    "node-cron": "^3.0.3",
-    "pg": "^8.11.5"
-  }
+This runs every 15 minutes.
+
+You can change it to:
+
+| Schedule      | Meaning           |
+| ------------- | ----------------- |
+| `*/5 * * * *` | Every 5 minutes   |
+| `0 * * * *`   | Every hour        |
+| `0 0 * * *`   | Daily at midnight |
+| `0 0 * * 0`   | Weekly            |
+
+---
+
+## API Endpoints
+
+### GET /health
+
+Health check endpoint.
+
+---
+
+### GET /jobs
+
+Returns all jobs in the system.
+
+---
+
+### (Optional) Add Job Endpoint Example
+
+You can extend with:
+
+```js
+if (url.pathname === "/jobs" && request.method === "POST") {
+  const body = await request.json();
+  await env.DB.prepare(
+    "INSERT INTO jobs (name, url, method) VALUES (?, ?, ?)"
+  )
+    .bind(body.name, body.url, body.method || "GET")
+    .run();
+
+  return new Response("Created", { status: 201 });
 }
 ```
 
 ---
 
-## Troubleshooting
+## Job Execution Model
 
-* `EACCES: permission denied, mkdir '/data'` — occurs if code expects a mounted disk. If you cannot mount a disk, ensure you use Postgres persistence (this project’s default for Render).
-* If the dashboard returns `403 IP not allowed` on first load: call `POST /ips/auto` (or use the UI root page to click Allow My IP).
-* If jobs aren’t running: verify `node-cron` schedules are valid and that the URLs are reachable from Render.
+Each cron cycle:
+
+1. Fetches all enabled jobs
+2. Executes HTTP request
+3. Records:
+
+   * success / failure
+   * response code
+   * execution timestamp
+
+Logs stored in `job_logs`.
 
 ---
 
-## License
+## Security Considerations
 
-GNU GENERAL PUBLIC LICENSE
+If exposing publicly:
+
+* Add authentication middleware
+* Restrict job creation endpoints
+* Rate-limit job insertion
+* Validate URLs before execution
+
+Never allow arbitrary unvalidated URL execution in production.
 
 ---
 
-## Credits
+## Development
 
-OpenCrom — built to be small, secure, and deployable on Render with a free Postgres DB. Pull requests and improvements welcome.
+Run locally:
+
+```bash
+wrangler dev
+```
+
+Simulate cron:
+
+```bash
+wrangler tail
+```
+
+---
+
+## Project Structure
+
+```
+src/
+  index.js      → Worker entry
+  jobs.js       → Job execution logic
+  db.js         → Database abstraction
+
+wrangler.toml
+schema.sql
+README.md
+```
+
+---
+
+## Limitations
+
+* Workers have CPU limits (free tier ~50ms CPU)
+* Not suitable for heavy computation
+* Best for:
+
+  * Webhooks
+  * Health checks
+  * Data sync triggers
+  * API polling
+  * Cache refresh jobs
+
+---
+
+## When Not to Use OpenCrom
+
+* Long-running batch jobs
+* Heavy data processing
+* Large file transfers
+* Direct TCP database connections
+
+For those, use a VPS or container runtime.
+
+---
+
+## Roadmap Ideas
+
+* Web UI dashboard
+* Auth layer
+* Retry with exponential backoff
+* Rate limiting per job
+* Job grouping
+* Webhook-based manual trigger
+* Queue-backed execution
+* Multi-tenant support
+
+---
+
+## Philosophy
+
+OpenCrom is built around:
+
+* Simplicity
+* Serverless-first design
+* No hidden infrastructure
+* Transparent job logging
+* Edge-native execution

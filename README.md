@@ -1,53 +1,18 @@
 # OpenCrom
 
-> Lightweight, serverless cron job scheduler built on Cloudflare Workers + D1.
-
-OpenCrom is a globally distributed, edge-native cron system designed for developers who want reliable scheduled HTTP execution without running servers, managing background workers, or fighting hosting provider sleep policies.
-
-Built on:
-
-* Cloudflare
-* Cloudflare Workers
-* Cloudflare D1
-
----
-
-## Why OpenCrom?
-
-Traditional cron setups require:
-
-* Always-on servers
-* Background workers
-* VPS management
-* Paid hosting tiers
-* Complex deployment pipelines
-
-OpenCrom removes all of that.
-
-You get:
-
-* Global cron execution
-* Serverless deployment
-* Built-in job logging
-* Enable/disable toggles
-* HTTP-based job execution
-* No idle timeout hacks
-* No self-pinging
-* No background daemons
-
-Everything runs at the edge.
+> Serverless cron job scheduler built on Cloudflare Workers + D1. Execute HTTP jobs globally with logs, toggles, and zero infrastructure.
 
 ---
 
 ## Features
 
-* Scheduled execution via Cloudflare Cron Triggers
-* Enable / disable jobs per record
+* Edge-native cron via Cloudflare Cron Triggers
+* Enable/disable toggle per job
 * HTTP job execution (GET / POST)
-* Execution logs (success / failure / response code)
-* D1-backed persistence
-* Fully serverless
-* Zero infrastructure management
+* Execution logs (success/failure/response code)
+* Cloudflare D1-backed storage
+* Fully serverless, no VPS or persistent backend required
+* iPad-friendly setup and one-click deploy
 
 ---
 
@@ -65,56 +30,74 @@ Execute HTTP requests
 Store logs in D1
 ```
 
-No servers. No containers. No long-running processes.
+* All job execution happens in the Worker
+* No self-pinging, no background daemons
 
 ---
 
-## Installation
+## One-Click Deploy (iPad-Friendly)
 
-### 1. Install Wrangler CLI
+Click the button below to deploy OpenCrom directly to your Cloudflare account:
 
-```bash
-npm install -g wrangler
-```
+[![Deploy to Cloudflare Workers](https://img.shields.io/badge/Deploy-Worker-orange)](https://dash.cloudflare.com/?to=/:account/workers&template=https://github.com/DisabledAbel/OpenCrom)
 
-### 2. Clone the Repository
+**Steps:**
+
+1. Click the button
+2. Connect your GitHub repo
+3. Set required environment variables:
+
+   * `INTERNAL_SECRET` (a long random string)
+4. Deploy
+
+No terminals or scripts needed — works fully in Safari/iPadOS.
+
+---
+
+## iPad Local Development (Optional)
+
+If you want to test locally on iPad (Play.js, iSH, Blink Shell):
+
+1. Install Node.js + Wrangler
+2. Clone the repo:
 
 ```bash
 git clone https://github.com/DisabledAbel/OpenCrom.git
 cd OpenCrom
 ```
 
-### 3. Create D1 Database
+3. Install dependencies:
+
+```bash
+npm install
+```
+
+4. Run dev server:
+
+```bash
+npm run dev
+```
+
+* This applies D1 schema and starts the Worker locally
+* Simulates scheduled execution
+
+---
+
+## Setup for Cloudflare Worker + D1
+
+1. Install Wrangler:
+
+```bash
+npm install -g wrangler
+```
+
+2. Create a D1 database:
 
 ```bash
 wrangler d1 create opencrom-db
 ```
 
-Copy the generated `database_id`.
-
----
-
-### 4. Configure `wrangler.toml`
-
-```toml
-name = "opencrom"
-main = "src/index.js"
-compatibility_date = "2024-01-01"
-
-[triggers]
-crons = ["*/15 * * * *"]
-
-[[d1_databases]]
-binding = "DB"
-database_name = "opencrom-db"
-database_id = "<your-database-id>"
-```
-
----
-
-### 5. Apply Schema
-
-Create `schema.sql`:
+3. Apply schema (`schema.sql` included):
 
 ```sql
 CREATE TABLE jobs (
@@ -134,132 +117,75 @@ CREATE TABLE job_logs (
 );
 ```
 
-Run:
-
 ```bash
 wrangler d1 execute opencrom-db --file=schema.sql
 ```
 
----
+4. Update `wrangler.toml`:
 
-### 6. Deploy
+```toml
+name = "opencrom"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "opencrom-db"
+database_id = "<your-d1-id>"
+```
+
+5. Deploy:
 
 ```bash
 wrangler deploy
 ```
 
-Done.
-
-Your cron is live.
-
----
-
-## Cron Schedule
-
-Defined in `wrangler.toml`:
-
-```
-*/15 * * * *
-```
-
-This runs every 15 minutes.
-
-You can change it to:
-
-| Schedule      | Meaning           |
-| ------------- | ----------------- |
-| `*/5 * * * *` | Every 5 minutes   |
-| `0 * * * *`   | Every hour        |
-| `0 0 * * *`   | Daily at midnight |
-| `0 0 * * 0`   | Weekly            |
-
 ---
 
 ## API Endpoints
 
-### GET /health
-
-Health check endpoint.
-
----
-
-### GET /jobs
-
-Returns all jobs in the system.
+| Endpoint  | Method | Description            |
+| --------- | ------ | ---------------------- |
+| `/health` | GET    | Health check           |
+| `/jobs`   | GET    | List all jobs          |
+| `/jobs`   | POST   | Add new job (optional) |
 
 ---
 
-### (Optional) Add Job Endpoint Example
-
-You can extend with:
-
-```js
-if (url.pathname === "/jobs" && request.method === "POST") {
-  const body = await request.json();
-  await env.DB.prepare(
-    "INSERT INTO jobs (name, url, method) VALUES (?, ?, ?)"
-  )
-    .bind(body.name, body.url, body.method || "GET")
-    .run();
-
-  return new Response("Created", { status: 201 });
-}
-```
-
----
-
-## Job Execution Model
+## Job Execution
 
 Each cron cycle:
 
-1. Fetches all enabled jobs
-2. Executes HTTP request
-3. Records:
+1. Fetch enabled jobs from D1
+2. Execute HTTP request per job
+3. Record:
 
-   * success / failure
+   * success/failure
    * response code
-   * execution timestamp
+   * timestamp
 
-Logs stored in `job_logs`.
-
----
-
-## Security Considerations
-
-If exposing publicly:
-
-* Add authentication middleware
-* Restrict job creation endpoints
-* Rate-limit job insertion
-* Validate URLs before execution
-
-Never allow arbitrary unvalidated URL execution in production.
+All logs stored in `job_logs` table.
 
 ---
 
-## Development
+## Security
 
-Run locally:
-
-```bash
-wrangler dev
-```
-
-Simulate cron:
-
-```bash
-wrangler tail
-```
+* Protect any public endpoints
+* Use a strong `INTERNAL_SECRET` for internal calls
+* Validate all job URLs before execution
 
 ---
 
-## Project Structure
+## Development Structure
 
 ```
 src/
   index.js      → Worker entry
   jobs.js       → Job execution logic
-  db.js         → Database abstraction
+  db.js         → D1 database abstraction
 
 wrangler.toml
 schema.sql
@@ -270,48 +196,15 @@ README.md
 
 ## Limitations
 
-* Workers have CPU limits (free tier ~50ms CPU)
-* Not suitable for heavy computation
-* Best for:
-
-  * Webhooks
-  * Health checks
-  * Data sync triggers
-  * API polling
-  * Cache refresh jobs
+* Workers CPU limits (free tier ~50ms per execution)
+* Not for heavy computation
+* Best for HTTP calls, webhooks, health checks, cache refreshes
 
 ---
 
-## When Not to Use OpenCrom
+## Roadmap / Ideas
 
-* Long-running batch jobs
-* Heavy data processing
-* Large file transfers
-* Direct TCP database connections
-
-For those, use a VPS or container runtime.
-
----
-
-## Roadmap Ideas
-
-* Web UI dashboard
-* Auth layer
-* Retry with exponential backoff
-* Rate limiting per job
-* Job grouping
-* Webhook-based manual trigger
-* Queue-backed execution
-* Multi-tenant support
-
----
-
-## Philosophy
-
-OpenCrom is built around:
-
-* Simplicity
-* Serverless-first design
-* No hidden infrastructure
-* Transparent job logging
-* Edge-native execution
+* Admin dashboard UI
+* Authentication for endpoints
+* Retry + backoff logic
+* Rate limiting

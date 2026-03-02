@@ -2,28 +2,25 @@
 # OpenCrom Worker Configuration
 # =========================
 
-name = "opencrom"                     # Worker name
-main = "src/index.js"                  # Entry point
-compatibility_date = "2026-01-01"     # Must be current or future date
+name = "opencrom"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
 
 # =========================
 # Cron Jobs
 # =========================
 [triggers]
-crons = ["*/15 * * * *"]              # Runs every 15 minutes
+crons = ["*/15 * * * *"]
 
 # =========================
-# D1 Database Binding
+# Top-level vars (optional, not inherited)
 # =========================
-[[d1_databases]]
-binding = "DB"                        # Variable in your Worker code
-database_name = "opencrom-db"         # Name of your D1 database
-database_id = "9ee56922-3e7c-4f45-be5a-9f8b8622329b"
+# You can keep global vars here if needed
+# vars = { LOG_LEVEL = "info" }
 
 # =========================
-# Environments
+# Preview Environment
 # =========================
-
 [env.preview]
 name = "opencrom-preview"
 main = "src/index.js"
@@ -34,6 +31,12 @@ binding = "DB"
 database_name = "opencrom-db-preview"
 database_id = "9ee56922-3e7c-4f45-be5a-9f8b8622329b"
 
+[env.preview.vars]
+LOG_LEVEL = "info"
+
+# =========================
+# Production Environment
+# =========================
 [env.production]
 name = "opencrom-prod"
 main = "src/index.js"
@@ -44,9 +47,5 @@ binding = "DB"
 database_name = "opencrom-db"
 database_id = "9ee56922-3e7c-4f45-be5a-9f8b8622329b"
 
-# =========================
-# Additional Settings
-# =========================
-# Enable Wrangler logs during preview/deploy
-[vars]
-LOG_LEVEL = "info"                    # Options: debug, info, warn, error
+[env.production.vars]
+LOG_LEVEL = "info"

@@ -1,6 +1,6 @@
 name = "opencrom"
 main = "src/index.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2026-01-01"
 
 [triggers]
 crons = ["*/15 * * * *"]
@@ -8,4 +8,4 @@ crons = ["*/15 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "opencrom-db"
-database_id = "<your-d1-id>"
+database_id = "9ee56922-3e7c-4f45-be5a-9f8b8622329b"

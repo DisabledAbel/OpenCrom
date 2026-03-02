@@ -3,38 +3,32 @@ name: Deploy OpenCrom Worker
 on:
   push:
     branches:
-      - "**"               # Deploy preview on any branch push
+      - "**"               # Deploy preview on any branch
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
 
 jobs:
   deploy-preview:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     steps:
-      # 1️⃣ Checkout code
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
-      # 3️⃣ Install Wrangler
       - name: Install Wrangler
         run: npm install -g wrangler
 
-      # 4️⃣ Set Cloudflare Token
       - name: Set Cloudflare API Token
         run: echo "CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }}" >> $GITHUB_ENV
 
-      # 5️⃣ Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 6️⃣ Deploy Preview Worker
       - name: Deploy Preview
         run: wrangler deploy --env preview
 
@@ -43,7 +37,7 @@ jobs:
     needs: deploy-preview
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
 
       - name: Setup Node.js

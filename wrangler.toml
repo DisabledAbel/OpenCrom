@@ -1,51 +1,29 @@
-# =========================
-# OpenCrom Worker Configuration
-# =========================
-
 name = "opencrom"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
-# =========================
-# Cron Jobs
-# =========================
+# Global variables (inherited by environments if needed)
+[vars]
+# Add any global variables here if needed
+# EXAMPLE: APP_NAME = "OpenCrom"
+
 [triggers]
 crons = ["*/15 * * * *"]
 
-# =========================
-# Top-level vars (optional, not inherited)
-# =========================
-# You can keep global vars here if needed
-# vars = { LOG_LEVEL = "info" }
-
-# =========================
-# Preview Environment
-# =========================
-[env.preview]
-name = "opencrom-preview"
-main = "src/index.js"
-compatibility_date = "2026-01-01"
-
-[[env.preview.d1_databases]]
-binding = "DB"
-database_name = "opencrom-db-preview"
-database_id = "9ee56922-3e7c-4f45-be5a-9f8b8622329b"
-
-[env.preview.vars]
-LOG_LEVEL = "info"
-
-# =========================
-# Production Environment
-# =========================
-[env.production]
-name = "opencrom-prod"
-main = "src/index.js"
-compatibility_date = "2026-01-01"
-
-[[env.production.d1_databases]]
+# D1 Database binding
+[[d1_databases]]
 binding = "DB"
 database_name = "opencrom-db"
 database_id = "9ee56922-3e7c-4f45-be5a-9f8b8622329b"
 
+# Preview environment
+[env.preview]
+# Any preview-specific vars
+[env.preview.vars]
+# PREVIEW_VAR = "example"
+
+# Production environment
+[env.production]
+# Any production-specific vars
 [env.production.vars]
-LOG_LEVEL = "info"
+# PRODUCTION_VAR = "example"

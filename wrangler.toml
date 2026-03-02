@@ -2,7 +2,7 @@
 # OpenCrom Worker Configuration
 # =========================
 
-name = "opencrom"
+name = "xu"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 

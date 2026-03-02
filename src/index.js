@@ -1,10 +1,10 @@
 export default {
   async scheduled(event, env, ctx) {
-    const jobs = await env.DB.prepare(
+    const { results } = await env.DB.prepare(
       "SELECT * FROM jobs WHERE enabled = 1"
     ).all();
 
-    for (const job of jobs.results) {
+    for (const job of results) {
       ctx.waitUntil(runJob(env, job));
     }
   },
@@ -12,15 +12,25 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // API: Get jobs
-    if (url.pathname === "/api/jobs") {
-      const jobs = await env.DB.prepare("SELECT * FROM jobs").all();
-      return json(jobs.results);
+    // Root Dashboard
+    if (url.pathname === "/") {
+      return new Response(dashboardHTML, {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
     }
 
-    // API: Add job
-    if (url.pathname === "/api/jobs/add" && request.method === "POST") {
+    // Get Jobs
+    if (url.pathname === "/api/jobs" && request.method === "GET") {
+      const { results } = await env.DB.prepare(
+        "SELECT * FROM jobs ORDER BY id DESC"
+      ).all();
+      return json(results);
+    }
+
+    // Add Job
+    if (url.pathname === "/api/jobs" && request.method === "POST") {
       const body = await request.json();
+
       await env.DB.prepare(
         "INSERT INTO jobs (url, method, enabled) VALUES (?, ?, 1)"
       )
@@ -30,11 +40,13 @@ export default {
       return json({ success: true });
     }
 
-    // Dashboard UI
-    if (url.pathname === "/") {
-      return new Response(dashboardHTML, {
-        headers: { "content-type": "text/html" },
-      });
+    // Delete Job
+    if (url.pathname.startsWith("/api/jobs/") && request.method === "DELETE") {
+      const id = url.pathname.split("/").pop();
+      await env.DB.prepare("DELETE FROM jobs WHERE id = ?")
+        .bind(id)
+        .run();
+      return json({ success: true });
     }
 
     return new Response("Not Found", { status: 404 });
@@ -68,54 +80,102 @@ const dashboardHTML = `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>OpenCrom Dashboard</title>
-  <style>
-    body { font-family: Arial; background:#111; color:white; padding:40px; }
-    input, button { padding:8px; margin:5px; }
-    table { margin-top:20px; border-collapse: collapse; }
-    td, th { padding:10px; border:1px solid #333; }
-    button { cursor:pointer; }
-  </style>
+<meta charset="utf-8"/>
+<title>OpenCrom Dashboard</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: white;
+  padding: 40px;
+}
+input, button {
+  padding: 10px;
+  margin: 5px;
+  border-radius: 6px;
+  border: none;
+}
+button {
+  background: #3b82f6;
+  color: white;
+  cursor: pointer;
+}
+table {
+  margin-top: 20px;
+  width: 100%;
+  border-collapse: collapse;
+}
+th, td {
+  padding: 12px;
+  border-bottom: 1px solid #1e293b;
+}
+th {
+  text-align: left;
+}
+</style>
 </head>
 <body>
-  <h1>🚀 OpenCrom Dashboard</h1>
 
-  <h3>Add Job</h3>
-  <input id="url" placeholder="https://example.com" size="40"/>
-  <button onclick="addJob()">Add</button>
+<h1>🚀 OpenCrom Dashboard</h1>
 
-  <h3>Jobs</h3>
-  <table id="jobsTable">
-    <thead>
-      <tr><th>ID</th><th>URL</th><th>Method</th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+<section>
+<h3>Add New Job</h3>
+<input id="url" placeholder="https://example.com" size="40"/>
+<button onclick="addJob()">Add Job</button>
+</section>
+
+<section>
+<h3>Jobs</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>URL</th>
+<th>Method</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="jobs"></tbody>
+</table>
+</section>
 
 <script>
-async function loadJobs(){
+async function loadJobs() {
   const res = await fetch('/api/jobs');
   const jobs = await res.json();
-  const tbody = document.querySelector('#jobsTable tbody');
+  const tbody = document.getElementById('jobs');
   tbody.innerHTML = '';
-  jobs.forEach(j=>{
-    tbody.innerHTML += 
-      '<tr><td>'+j.id+'</td><td>'+j.url+'</td><td>'+j.method+'</td></tr>';
+  jobs.forEach(job => {
+    tbody.innerHTML += \`
+      <tr>
+        <td>\${job.id}</td>
+        <td>\${job.url}</td>
+        <td>\${job.method}</td>
+        <td><button onclick="deleteJob(\${job.id})">Delete</button></td>
+      </tr>
+    \`;
   });
 }
 
-async function addJob(){
+async function addJob() {
   const url = document.getElementById('url').value;
-  await fetch('/api/jobs/add',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({url})
+  await fetch('/api/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
   });
+  document.getElementById('url').value = '';
+  loadJobs();
+}
+
+async function deleteJob(id) {
+  await fetch('/api/jobs/' + id, { method: 'DELETE' });
   loadJobs();
 }
 
 loadJobs();
 </script>
+
 </body>
 </html>
 `;

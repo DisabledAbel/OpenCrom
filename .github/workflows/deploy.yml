@@ -1,0 +1,54 @@
+name: Deploy OpenCrom Worker
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout code
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      # 2️⃣ Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      # 3️⃣ Install Wrangler CLI
+      - name: Install Wrangler
+        run: npm install -g wrangler
+
+      # 4️⃣ Authenticate Wrangler
+      - name: Wrangler Login
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: |
+          echo "$CF_API_TOKEN" | wrangler login --api-token
+
+      # 5️⃣ Ensure D1 tables exist
+      - name: Initialize D1 Tables
+        run: |
+          wrangler d1 execute opencrom-db --command="
+          CREATE TABLE IF NOT EXISTS jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT NOT NULL,
+            method TEXT DEFAULT 'GET',
+            enabled INTEGER DEFAULT 1
+          );
+          CREATE TABLE IF NOT EXISTS job_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER,
+            status TEXT,
+            response_code INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );"
+
+      # 6️⃣ Deploy Worker
+      - name: Deploy Worker
+        run: wrangler deploy

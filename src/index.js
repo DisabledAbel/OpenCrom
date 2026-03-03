@@ -1,135 +1,116 @@
+import { getEnabledJobs, logJob } from "./db.js";
+
 export default {
-  async scheduled(event, env, ctx) {
-    const { results } = await env.DB.prepare(
-      "SELECT * FROM jobs WHERE enabled = 1"
-    ).all();
-
-    for (const job of results) {
-      ctx.waitUntil(runJob(env, job));
-    }
-  },
-
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/") {
-      return new Response(dashboardHTML, {
-        headers: { "content-type": "text/html; charset=utf-8" },
+    // Manual trigger
+    if (url.pathname === "/run") {
+      ctx.waitUntil(runJobs(env));
+      return new Response("Manual run triggered");
+    }
+
+    // List jobs
+    if (url.pathname === "/jobs" && request.method === "GET") {
+      const jobs = await env.DB.prepare("SELECT * FROM jobs ORDER BY id DESC").all();
+      return new Response(JSON.stringify(jobs.results), {
+        headers: { "content-type": "application/json" }
       });
     }
 
-    if (url.pathname === "/api/jobs" && request.method === "GET") {
-      const { results } = await env.DB.prepare(
-        "SELECT * FROM jobs ORDER BY id DESC"
-      ).all();
-      return json(results);
-    }
-
-    if (url.pathname === "/api/jobs" && request.method === "POST") {
-      const body = await request.json();
-      await env.DB.prepare(
-        "INSERT INTO jobs (url, method, enabled) VALUES (?, ?, 1)"
-      )
-        .bind(body.url, body.method || "GET")
+    // Add job
+    if (url.pathname === "/jobs" && request.method === "POST") {
+      const data = await request.json();
+      await env.DB.prepare("INSERT INTO jobs (name, url, method, enabled) VALUES (?, ?, ?, 1)")
+        .bind(data.name ?? "", data.url, data.method ?? "GET")
         .run();
-      return json({ success: true });
+      return new Response(JSON.stringify({ success: true }), { headers: { "content-type": "application/json" }});
     }
 
-    if (url.pathname.startsWith("/api/jobs/") && request.method === "DELETE") {
-      const id = url.pathname.split("/").pop();
-      await env.DB.prepare("DELETE FROM jobs WHERE id = ?").bind(id).run();
-      return json({ success: true });
-    }
-
-    return new Response("Not Found", { status: 404 });
+    // Basic UI
+    return new Response(renderUI(), {
+      headers: { "content-type": "text/html; charset=utf-8" }
+    });
   },
+
+  async scheduled(event, env, ctx) {
+    // Run jobs on schedule
+    ctx.waitUntil(runJobs(env));
+  }
 };
 
-async function runJob(env, job) {
-  try {
-    const res = await fetch(job.url, { method: job.method });
-    await env.DB.prepare(
-      "INSERT INTO job_logs (job_id, status, response_code) VALUES (?, ?, ?)"
-    )
-      .bind(job.id, res.ok ? "success" : "fail", res.status)
-      .run();
-  } catch {
-    await env.DB.prepare(
-      "INSERT INTO job_logs (job_id, status, response_code) VALUES (?, ?, ?)"
-    )
-      .bind(job.id, "fail", 0)
-      .run();
+async function runJobs(env) {
+  const jobs = await getEnabledJobs(env);
+
+  for (const job of jobs) {
+    try {
+      const response = await fetch(job.url, { method: job.method });
+      await logJob(env, job.id, response.ok ? "success" : "fail", response.status);
+    } catch (err) {
+      await logJob(env, job.id, "fail", 0);
+    }
   }
 }
 
-function json(data) {
-  return new Response(JSON.stringify(data), {
-    headers: { "content-type": "application/json" },
-  });
-}
-
-const dashboardHTML = `<!DOCTYPE html>
+function renderUI() {
+  return `
+<!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8"/>
+<meta charset="UTF-8">
 <title>OpenCrom Dashboard</title>
 <style>
-body { font-family: Arial; background: #0f172a; color: white; padding: 40px; }
-input, button { padding: 10px; margin: 5px; border-radius: 6px; border: none; }
-button { background: #3b82f6; color: white; cursor: pointer; }
-table { margin-top: 20px; width: 100%; border-collapse: collapse; }
-th, td { padding: 12px; border-bottom: 1px solid #1e293b; }
-th { text-align: left; }
+body { font-family: Arial, sans-serif; padding: 30px; background: #f8f8f8; }
+button { padding: 8px 12px; margin-top: 8px; }
 </style>
 </head>
 <body>
-<h1>🚀 OpenCrom Dashboard</h1>
+<h1>OpenCrom Dashboard</h1>
 <section>
-<h3>Add New Job</h3>
-<input id="url" placeholder="https://example.com" size="40"/>
-<button onclick="addJob()">Add Job</button>
+<h3>Add Job</h3>
+<input id="name" placeholder="Name"/><br/>
+<input id="url" placeholder="https://example.com"/><br/>
+<select id="method"><option>GET</option><option>POST</option></select><br/>
+<button onclick="addJob()">Add</button>
 </section>
+
 <section>
 <h3>Jobs</h3>
-<table>
-<thead>
-<tr><th>ID</th><th>URL</th><th>Method</th><th>Action</th></tr>
-</thead>
+<table border="1" cellpadding="4">
+<thead><tr><th>ID</th><th>Name</th><th>URL</th><th>Method</th></tr></thead>
 <tbody id="jobs"></tbody>
 </table>
 </section>
+
 <script>
 async function loadJobs() {
-  const res = await fetch('/api/jobs');
+  const res = await fetch('/jobs');
   const jobs = await res.json();
   const tbody = document.getElementById('jobs');
   tbody.innerHTML = '';
-  jobs.forEach(job => {
-    tbody.innerHTML += \`
-      <tr>
-        <td>\${job.id}</td>
-        <td>\${job.url}</td>
-        <td>\${job.method}</td>
-        <td><button onclick="deleteJob(\${job.id})">Delete</button></td>
-      </tr>
-    \`;
+  jobs.forEach(j => {
+    tbody.innerHTML += 
+      '<tr><td>' + j.id + '</td><td>' + j.name + 
+      '</td><td>' + j.url + '</td><td>' + j.method + '</td></tr>';
   });
 }
+
 async function addJob() {
-  const url = document.getElementById('url').value;
-  await fetch('/api/jobs', {
+  await fetch('/jobs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url })
+    body: JSON.stringify({
+      name: document.getElementById('name').value,
+      url: document.getElementById('url').value,
+      method: document.getElementById('method').value
+    })
   });
-  document.getElementById('url').value = '';
   loadJobs();
 }
-async function deleteJob(id) {
-  await fetch('/api/jobs/' + id, { method: 'DELETE' });
-  loadJobs();
-}
+
 loadJobs();
 </script>
+
 </body>
 </html>`;
+}

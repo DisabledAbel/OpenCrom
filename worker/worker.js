@@ -1,113 +1,73 @@
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
+import { createClient } from "@supabase/supabase-js";
 
-    if (url.pathname === "/run") {
-      ctx.waitUntil(runJobs(env));
-      return new Response("Manual run triggered");
-    }
-
-    if (url.pathname === "/jobs") {
-      return await getJobs(env);
-    }
-
-    return new Response(renderUI(), {
-      headers: { "content-type": "text/html" }
-    });
-  },
-
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(runJobs(env));
+async function getNext(cron, from) {
+  const parser = await import("cron-parser");
+  try {
+    const it = parser.parseExpression(cron, { currentDate: new Date(from) });
+    return it.next().getTime();
+  } catch {
+    return null;
   }
-};
+}
 
-async function runJobs(env) {
-  console.log("Scheduler executing");
+export default {
+  async scheduled(event, env, ctx) {
+    const supabase = createClient(
+      env.SUPABASE_URL,
+      env.SUPABASE_SERVICE_ROLE_KEY
+    );
 
-  const jobsRes = await fetch(`${env.SUPABASE_URL}/rest/v1/jobs`, {
-    headers: {
-      apikey: env.SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`
+    const { data: jobs, error } = await supabase
+      .from("jobs")
+      .select("*");
+
+    if (error) {
+      console.error("Fetch jobs error:", error);
+      return;
     }
-  });
 
-  const jobs = await jobsRes.json();
-  const now = Date.now();
+    const now = Date.now();
 
-  for (const job of jobs) {
-    if (!job.next_run || now >= job.next_run) {
-      try {
-        const start = Date.now();
-        const res = await fetch(job.url);
-        const ms = Date.now() - start;
+    for (const job of jobs) {
+      if (!job.next_run) {
+        const next = await getNext(job.cron, now);
+        await supabase
+          .from("jobs")
+          .update({ next_run: next })
+          .eq("id", job.id);
+        continue;
+      }
 
-        await fetch(`${env.SUPABASE_URL}/rest/v1/logs`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: env.SUPABASE_SERVICE_KEY,
-            Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`
-          },
-          body: JSON.stringify({
+      if (now >= job.next_run) {
+        try {
+          const start = Date.now();
+          const res = await fetch(job.url);
+          const ms = Date.now() - start;
+
+          await supabase.from("logs").insert([{
             job_id: job.id,
             url: job.url,
             status: res.status,
             response_time: ms
-          })
-        });
-
-      } catch (err) {
-        await fetch(`${env.SUPABASE_URL}/rest/v1/logs`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: env.SUPABASE_SERVICE_KEY,
-            Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`
-          },
-          body: JSON.stringify({
+          }]);
+        } catch (err) {
+          await supabase.from("logs").insert([{
             job_id: job.id,
             url: job.url,
             status: "ERROR",
             error: err.message
+          }]);
+        }
+
+        const next = await getNext(job.cron, now);
+        await supabase
+          .from("jobs")
+          .update({
+            last_run: now,
+            next_run: next
           })
-        });
+          .eq("id", job.id);
       }
     }
   }
-}
-
-async function getJobs(env) {
-  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/jobs?select=*`, {
-    headers: {
-      apikey: env.SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`
-    }
-  });
-
-  return new Response(await res.text(), {
-    headers: {
-      "content-type": "application/json",
-      "cache-control": "no-store"
-    }
-  });
-}
-
-function renderUI() {
-  return `
-  <html>
-    <body style="font-family: sans-serif; padding: 40px;">
-      <h1>Job Dashboard</h1>
-      <button onclick="fetch('/run')">Run Now</button>
-      <button onclick="load()">Refresh Jobs</button>
-      <pre id="data"></pre>
-
-      <script>
-        async function load() {
-          const res = await fetch('/jobs');
-          document.getElementById('data').textContent = await res.text();
-        }
-      </script>
-    </body>
-  </html>
-  `;
-}
+};
